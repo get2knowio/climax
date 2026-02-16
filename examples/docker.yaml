@@ -1,0 +1,76 @@
+# Example: Expose Docker commands as MCP tools
+# This config focuses on read/inspect operations for safety
+
+name: docker-tools
+description: "MCP tools for Docker container and image management"
+command: docker
+
+tools:
+  - name: docker_ps
+    description: "List running containers"
+    command: ps
+    args:
+      - name: all
+        type: boolean
+        description: "Show all containers (including stopped)"
+        flag: "--all"
+      - name: format
+        type: string
+        description: "Format output using a Go template (e.g. 'table {{.Names}}\\t{{.Status}}')"
+        flag: "--format"
+
+  - name: docker_images
+    description: "List Docker images"
+    command: images
+    args:
+      - name: all
+        type: boolean
+        description: "Show all images (including intermediates)"
+        flag: "--all"
+      - name: format
+        type: string
+        description: "Format output using a Go template"
+        flag: "--format"
+
+  - name: docker_logs
+    description: "Fetch the logs of a container"
+    command: logs
+    args:
+      - name: container
+        type: string
+        description: "Container name or ID"
+        required: true
+        positional: true
+      - name: tail
+        type: string
+        description: "Number of lines to show from end of logs"
+        flag: "--tail"
+        default: "50"
+      - name: follow
+        type: boolean
+        description: "Follow log output (WARNING: will block until timeout)"
+        flag: "--follow"
+
+  - name: docker_inspect
+    description: "Return low-level information about a container or image"
+    command: inspect
+    args:
+      - name: target
+        type: string
+        description: "Container or image name/ID to inspect"
+        required: true
+        positional: true
+      - name: format
+        type: string
+        description: "Format output using a Go template"
+        flag: "--format"
+
+  - name: docker_compose_ps
+    description: "List containers managed by Docker Compose"
+    command: compose ps
+    args:
+      - name: format
+        type: string
+        description: "Format output (table, json)"
+        flag: "--format"
+        enum: ["table", "json"]

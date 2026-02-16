@@ -1,0 +1,93 @@
+# Example: Expose common git commands as MCP tools
+# An LLM could generate this from `git --help` output
+
+name: git-tools
+description: "MCP tools for Git version control operations"
+command: git
+
+tools:
+  - name: git_status
+    description: "Show the working tree status — lists modified, staged, and untracked files"
+    command: status
+    args:
+      - name: short
+        type: boolean
+        description: "Give output in short format"
+        flag: "--short"
+      - name: branch
+        type: boolean
+        description: "Show branch and tracking info even in short format"
+        flag: "--branch"
+
+  - name: git_log
+    description: "Show recent commit history"
+    command: log
+    args:
+      - name: max_count
+        type: integer
+        description: "Limit number of commits to show"
+        required: false
+        default: 10
+        flag: "-n"
+      - name: oneline
+        type: boolean
+        description: "Show each commit on a single line"
+        flag: "--oneline"
+      - name: author
+        type: string
+        description: "Filter commits by author name or email"
+        flag: "--author"
+
+  - name: git_diff
+    description: "Show changes between working tree and index (unstaged changes)"
+    command: diff
+    args:
+      - name: staged
+        type: boolean
+        description: "Show staged changes (diff between index and HEAD)"
+        flag: "--staged"
+      - name: stat
+        type: boolean
+        description: "Show diffstat instead of full diff"
+        flag: "--stat"
+      - name: path
+        type: string
+        description: "Limit diff to a specific file or directory"
+        positional: true
+
+  - name: git_branch
+    description: "List, create, or delete branches"
+    command: branch
+    args:
+      - name: all
+        type: boolean
+        description: "List both local and remote branches"
+        flag: "--all"
+      - name: verbose
+        type: boolean
+        description: "Show hash and subject for each branch"
+        flag: "--verbose"
+
+  - name: git_add
+    description: "Stage files for the next commit"
+    command: add
+    args:
+      - name: path
+        type: string
+        description: "File or directory to stage (use '.' for all)"
+        required: true
+        positional: true
+
+  - name: git_commit
+    description: "Record changes to the repository"
+    command: commit
+    args:
+      - name: message
+        type: string
+        description: "Commit message"
+        required: true
+        flag: "-m"
+      - name: all
+        type: boolean
+        description: "Automatically stage modified and deleted files"
+        flag: "--all"
