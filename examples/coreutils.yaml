@@ -1,0 +1,34 @@
+# Coreutils: simple echo-based tools for end-to-end testing
+# Available on every Unix system with fully deterministic output.
+
+name: coreutils
+description: "Basic coreutils for testing — echo with various arg patterns"
+command: echo
+
+tools:
+  - name: coreutils_echo
+    description: "Echo a message to stdout — tests basic positional arg invocation"
+    args:
+      - name: message
+        type: string
+        description: "The message to echo"
+        required: true
+        positional: true
+
+  - name: coreutils_echo_flag
+    description: "Echo without a trailing newline — tests boolean flag behavior"
+    command: ""
+    args:
+      - name: message
+        type: string
+        description: "The message to echo"
+        required: true
+        positional: true
+      - name: no_newline
+        type: boolean
+        description: "Do not output a trailing newline"
+        flag: "-n"
+
+  - name: coreutils_hello
+    description: "Echo a fixed greeting — tests no-arg tool invocation"
+    command: "hello from CLImax"
