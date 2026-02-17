@@ -5,13 +5,15 @@ Point an LLM at your CLI's --help output, have it generate a YAML config,
 and instantly get an MCP server for that CLI. No custom code needed.
 
 Usage:
-    climax config.yaml
-    climax jj.yaml git.yaml docker.yaml
-    climax config.yaml --log-level DEBUG
+    climax validate config.yaml [config2.yaml ...]
+    climax list config.yaml [config2.yaml ...]
+    climax run config.yaml [config2.yaml ...]
+    climax config.yaml [--log-level ...]         # backward compat
 """
 
 import asyncio
 import logging
+import shutil
 import sys
 import time
 from enum import Enum
@@ -19,9 +21,10 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from rich.console import Console
 from rich.logging import RichHandler
+from rich.table import Table
 
 import mcp.server.stdio
 import mcp.types as types
@@ -365,37 +368,96 @@ def create_server(
 
 
 # ---------------------------------------------------------------------------
-# Entry point
+# CLI subcommands
 # ---------------------------------------------------------------------------
 
-def main():
-    import argparse
+def cmd_validate(args, console: Console | None = None) -> int:
+    """Validate one or more YAML config files. Returns 0 if all valid, 1 otherwise."""
+    console = console or Console()
+    valid = 0
+    invalid = 0
 
-    parser = argparse.ArgumentParser(
-        description="CLImax: expose any CLI as MCP tools via YAML config"
-    )
-    parser.add_argument(
-        "configs",
-        nargs="+",
-        metavar="CONFIG",
-        help="Path(s) to YAML configuration file(s)",
-    )
-    parser.add_argument(
-        "--transport",
-        choices=["stdio"],
-        default="stdio",
-        help="MCP transport (default: stdio)",
-    )
-    parser.add_argument(
-        "--log-level",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        default="WARNING",
-        help="Logging level",
-    )
+    for path in args.configs:
+        try:
+            config = load_config(path)
+            console.print(f"  [green]✓[/green] {config.name} — {len(config.tools)} tool(s)")
 
-    args = parser.parse_args()
+            # Deep check: warn if command binary is not on PATH
+            binary = config.command.split()[0]
+            if not shutil.which(binary):
+                console.print(f"    [yellow]⚠ '{binary}' not found on PATH[/yellow]")
 
-    # Update log level from CLI arg
+            valid += 1
+        except ValidationError as e:
+            console.print(f"  [red]✗[/red] {path}")
+            for err in e.errors():
+                loc = " → ".join(str(l) for l in err["loc"])
+                console.print(f"    {loc}: {err['msg']}")
+            invalid += 1
+        except Exception as e:
+            console.print(f"  [red]✗[/red] {path}: {e}")
+            invalid += 1
+
+    if invalid == 0:
+        console.print(f"\nAll {valid} config(s) valid")
+    else:
+        console.print(f"\n{valid} valid, {invalid} invalid")
+
+    return 0 if invalid == 0 else 1
+
+
+def cmd_list(args, console: Console | None = None) -> int:
+    """List all tools from the given config files."""
+    console = console or Console()
+
+    try:
+        server_name, tool_map = load_configs(args.configs)
+    except Exception as e:
+        console.print(f"[red]Error loading configs:[/red] {e}")
+        return 1
+
+    console.print(f"[bold]{server_name}[/bold] — {len(tool_map)} tool(s)\n")
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Tool")
+    table.add_column("Description")
+    table.add_column("Command")
+    table.add_column("Arguments")
+
+    for name in sorted(tool_map):
+        resolved = tool_map[name]
+        td = resolved.tool
+
+        # Format arguments column
+        arg_parts = []
+        for a in td.args:
+            parts = [f"[bold]{a.name}[/bold]"]
+            meta = []
+            if a.type != ArgType.string:
+                meta.append(a.type.value)
+            if a.required:
+                meta.append("required")
+            if a.positional:
+                meta.append("positional")
+            if a.default is not None:
+                meta.append(f"default={a.default}")
+            if a.enum:
+                meta.append(f"enum={a.enum}")
+            if meta:
+                parts.append(f"({', '.join(meta)})")
+            arg_parts.append(" ".join(parts))
+
+        args_str = "\n".join(arg_parts) if arg_parts else "[dim]none[/dim]"
+        full_cmd = f"{resolved.base_command} {td.command}".strip()
+
+        table.add_row(name, td.description, full_cmd, args_str)
+
+    console.print(table)
+    return 0
+
+
+def cmd_run(args) -> None:
+    """Start the MCP server (stdio transport)."""
     logger.setLevel(getattr(logging, args.log_level))
 
     server_name, tool_map = load_configs(args.configs)
@@ -410,6 +472,64 @@ def main():
             )
 
     asyncio.run(run())
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def _build_run_parser(parser=None):
+    """Build the 'run' argument parser (reused for backward compat)."""
+    import argparse
+
+    if parser is None:
+        parser = argparse.ArgumentParser()
+    parser.add_argument("configs", nargs="+", metavar="CONFIG")
+    parser.add_argument("--transport", choices=["stdio"], default="stdio", help="MCP transport (default: stdio)")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="WARNING", help="Logging level")
+    return parser
+
+
+def main():
+    import argparse
+
+    SUBCOMMANDS = {"validate", "list", "run"}
+
+    # Check if the first positional arg is a known subcommand
+    argv = sys.argv[1:]
+    first_positional = next((a for a in argv if not a.startswith("-")), None)
+
+    if first_positional not in SUBCOMMANDS:
+        # Backward compat: climax config.yaml [--log-level ...]
+        run_parser = _build_run_parser()
+        args = run_parser.parse_args(argv)
+        cmd_run(args)
+        return
+
+    parser = argparse.ArgumentParser(
+        description="CLImax: expose any CLI as MCP tools via YAML config"
+    )
+    subparsers = parser.add_subparsers(dest="subcommand")
+
+    # --- validate ---
+    p_validate = subparsers.add_parser("validate", help="Validate config file(s)")
+    p_validate.add_argument("configs", nargs="+", metavar="CONFIG")
+
+    # --- list ---
+    p_list = subparsers.add_parser("list", help="List tools from config file(s)")
+    p_list.add_argument("configs", nargs="+", metavar="CONFIG")
+
+    # --- run ---
+    _build_run_parser(subparsers.add_parser("run", help="Start MCP server"))
+
+    args = parser.parse_args(argv)
+
+    if args.subcommand == "validate":
+        sys.exit(cmd_validate(args))
+    elif args.subcommand == "list":
+        sys.exit(cmd_list(args))
+    elif args.subcommand == "run":
+        cmd_run(args)
 
 
 if __name__ == "__main__":
