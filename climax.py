@@ -5,24 +5,37 @@ Point an LLM at your CLI's --help output, have it generate a YAML config,
 and instantly get an MCP server for that CLI. No custom code needed.
 
 Usage:
-    python climax.py config.yaml
+    climax config.yaml
+    climax jj.yaml git.yaml docker.yaml
     climax config.yaml --log-level DEBUG
 """
 
 import asyncio
 import logging
 import sys
+import time
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
+from rich.console import Console
+from rich.logging import RichHandler
 
 import mcp.server.stdio
 import mcp.types as types
 from mcp.server.lowlevel import Server
 
+# Rich logging to stderr (stdout is reserved for MCP stdio transport)
+console = Console(stderr=True)
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(console=console, rich_tracebacks=True, show_path=False)],
+)
 logger = logging.getLogger("climax")
 
 
@@ -58,13 +71,25 @@ class ToolDef(BaseModel):
 
 
 class CLImaxConfig(BaseModel):
-    """Top-level configuration for CLImax."""
+    """Top-level configuration for a single CLI."""
     name: str = "climax"
     description: str = ""
     command: str                     # base command, e.g. "docker" or "/usr/bin/my-app"
     env: dict[str, str] = Field(default_factory=dict)  # extra env vars for subprocess
     working_dir: str | None = None
     tools: list[ToolDef]
+
+
+# ---------------------------------------------------------------------------
+# Resolved tool: a ToolDef + the config it came from
+# ---------------------------------------------------------------------------
+
+class ResolvedTool(BaseModel):
+    """A tool definition paired with its parent CLI config."""
+    tool: ToolDef
+    base_command: str
+    env: dict[str, str] = Field(default_factory=dict)
+    working_dir: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +101,51 @@ def load_config(path: str | Path) -> CLImaxConfig:
     raw = Path(path).read_text()
     data = yaml.safe_load(raw)
     return CLImaxConfig(**data)
+
+
+def load_configs(paths: list[str | Path]) -> tuple[str, dict[str, ResolvedTool]]:
+    """
+    Load one or more YAML configs and merge their tools.
+
+    Returns (server_name, tool_map) where tool_map maps
+    tool name → ResolvedTool with the correct base command.
+    """
+    tool_map: dict[str, ResolvedTool] = {}
+    names: list[str] = []
+
+    for path in paths:
+        config = load_config(path)
+        names.append(config.name)
+        logger.info(
+            "Loaded [bold]%s[/bold] from %s (%d tools)",
+            config.name, path, len(config.tools),
+            extra={"markup": True},
+        )
+
+        for tool_def in config.tools:
+            if tool_def.name in tool_map:
+                logger.warning(
+                    "Duplicate tool name [bold]%s[/bold] — overwriting (from %s)",
+                    tool_def.name, path,
+                    extra={"markup": True},
+                )
+            tool_map[tool_def.name] = ResolvedTool(
+                tool=tool_def,
+                base_command=config.command,
+                env=config.env,
+                working_dir=config.working_dir,
+            )
+
+    # Server name: use the single config name, or combine them
+    server_name = names[0] if len(names) == 1 else "climax"
+
+    logger.info(
+        "Server [bold]%s[/bold] ready with %d tools",
+        server_name, len(tool_map),
+        extra={"markup": True},
+    )
+
+    return server_name, tool_map
 
 
 # ---------------------------------------------------------------------------
@@ -219,24 +289,25 @@ async def run_command(
 # MCP Server
 # ---------------------------------------------------------------------------
 
-def create_server(config: CLImaxConfig) -> Server:
-    """Create and configure the MCP server from a CLImaxConfig."""
+def create_server(
+    server_name: str,
+    tool_map: dict[str, ResolvedTool],
+) -> Server:
+    """Create and configure the MCP server from resolved tools."""
 
-    server = Server(config.name)
-
-    # Build a lookup table: tool_name → ToolDef
-    tool_map: dict[str, ToolDef] = {t.name: t for t in config.tools}
+    server = Server(server_name)
 
     @server.list_tools()
     async def list_tools() -> list[types.Tool]:
-        """Return all tools defined in the YAML config."""
+        """Return all tools from all loaded configs."""
         result = []
-        for tool_def in config.tools:
+        for name, resolved in tool_map.items():
+            td = resolved.tool
             result.append(
                 types.Tool(
-                    name=tool_def.name,
-                    description=tool_def.description or f"Run: {config.command} {tool_def.command}",
-                    inputSchema=build_input_schema(tool_def.args),
+                    name=td.name,
+                    description=td.description or f"Run: {resolved.base_command} {td.command}",
+                    inputSchema=build_input_schema(td.args),
                 )
             )
         return result
@@ -244,23 +315,38 @@ def create_server(config: CLImaxConfig) -> Server:
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any] | None) -> list[types.TextContent]:
         """Execute the CLI command for the given tool."""
-        tool_def = tool_map.get(name)
-        if not tool_def:
-            return [types.TextContent(
-                type="text",
-                text=f"Unknown tool: {name}",
-            )]
+        resolved = tool_map.get(name)
+        if not resolved:
+            logger.warning("Unknown tool called: %s", name)
+            return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
 
         arguments = arguments or {}
-        cmd = build_command(config.command, tool_def, arguments)
+        cmd = build_command(resolved.base_command, resolved.tool, arguments)
+        cmd_str = " ".join(cmd)
 
-        logger.info(f"Executing: {' '.join(cmd)}")
+        logger.info("▶ %s", cmd_str)
+        t0 = time.monotonic()
 
         returncode, stdout, stderr = await run_command(
             cmd,
-            env=config.env or None,
-            working_dir=config.working_dir,
+            env=resolved.env or None,
+            working_dir=resolved.working_dir,
         )
+
+        elapsed = time.monotonic() - t0
+
+        if returncode == 0:
+            logger.info(
+                "✓ %s completed in %.1fs (%d bytes)",
+                name, elapsed, len(stdout),
+            )
+        else:
+            logger.warning(
+                "✗ %s failed (exit %d) in %.1fs",
+                name, returncode, elapsed,
+            )
+            if stderr.strip():
+                logger.debug("stderr: %s", stderr.strip()[:200])
 
         # Build response
         parts = []
@@ -289,8 +375,10 @@ def main():
         description="CLImax: expose any CLI as MCP tools via YAML config"
     )
     parser.add_argument(
-        "config",
-        help="Path to YAML configuration file",
+        "configs",
+        nargs="+",
+        metavar="CONFIG",
+        help="Path(s) to YAML configuration file(s)",
     )
     parser.add_argument(
         "--transport",
@@ -307,12 +395,11 @@ def main():
 
     args = parser.parse_args()
 
-    logging.basicConfig(level=getattr(logging, args.log_level), stream=sys.stderr)
+    # Update log level from CLI arg
+    logger.setLevel(getattr(logging, args.log_level))
 
-    config = load_config(args.config)
-    logger.info(f"Loaded config: {config.name} with {len(config.tools)} tools")
-
-    server = create_server(config)
+    server_name, tool_map = load_configs(args.configs)
+    server = create_server(server_name, tool_map)
 
     async def run():
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):

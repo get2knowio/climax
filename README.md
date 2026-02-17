@@ -12,11 +12,14 @@ pip install -e .
 # or with uv
 uv pip install -e .
 
-# Run with a config
-python climax.py examples/git.yaml
+# Run with a single config
+climax examples/git.yaml
 
-# Or as installed script
-climax examples/jj.yaml
+# Or combine multiple CLIs into one server
+climax examples/jj.yaml examples/git.yaml examples/docker.yaml
+
+# Enable Rich logging to see what's happening
+climax examples/jj.yaml --log-level INFO
 ```
 
 ## How It Works
@@ -89,15 +92,23 @@ tools:
 
 ## Generating Configs with an LLM
 
-The fastest way to create a config is to paste your CLI's `--help` output into an LLM along with the prompt template in [`generate-config-prompt.md`](generate-config-prompt.md):
+The fastest way to create a config is to have an LLM generate it from your CLI's `--help` output. CLImax ships with a skill ([`skill/SKILL.md`](skill/SKILL.md)) that teaches LLMs exactly how to produce valid configs.
+
+**With Claude Code or any skill-aware agent:**
+
+Point the agent at the skill and ask it to generate a config for your CLI. It will capture the help output, select the right commands, and produce a ready-to-use YAML file.
+
+**Manually:**
 
 ```bash
 # Capture help output
 my-cli --help > /tmp/help.txt
 my-cli subcommand --help >> /tmp/help.txt
 
-# Then paste into an LLM with the prompt template
+# Paste into any LLM along with the contents of skill/SKILL.md
 ```
+
+The skill covers the full YAML schema, naming conventions, argument mapping patterns, and a validation checklist.
 
 ## Connecting to Claude Desktop / Cursor
 
@@ -115,15 +126,14 @@ Add to your `claude_desktop_config.json` or MCP client config:
 }
 ```
 
-Or with uv:
+Multiple CLIs in one server:
 
 ```json
 {
   "mcpServers": {
-    "my-cli": {
-      "command": "uv",
-      "args": ["run", "--with", "climax", "climax", "/path/to/config.yaml"],
-      "env": {}
+    "dev-tools": {
+      "command": "climax",
+      "args": ["/path/to/jj.yaml", "/path/to/git.yaml", "/path/to/docker.yaml"]
     }
   }
 }
