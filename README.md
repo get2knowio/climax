@@ -12,19 +12,20 @@ Instead of writing a custom MCP server for every CLI tool, write a YAML file tha
 │  (Claude,    │ MCP │  (reads YAML,    │ sub │  (git, jj,  │
 │   Cursor,    │◀────│   runs commands)  │◀────│   docker..) │
 │   etc.)      │     └──────────────────┘proc │             │
-└──────────────┘              ▲                └─────────────┘
-                              │
-                     ┌────────┴────────┐
-                     │   config.yaml   │
-                     │  (tool defs +   │
-                     │   arg mappings) │
-                     └─────────────────┘
+└──────────────┘         ▲         ▲          └─────────────┘
+                         │         │
+                ┌────────┴───┐ ┌───┴──────────┐
+                │ config.yaml│ │ policy.yaml  │
+                │ (tool defs)│ │ (optional)   │
+                └────────────┘ └──────────────┘
 ```
 
 You need three things:
 1. **CLImax** — this program
-2. **A YAML file** — describes which commands to expose and how
+2. **A YAML config** — describes which commands to expose and how
 3. **The CLI** — the actual tool you want to call (must be on PATH)
+
+Optionally, a **policy file** controls which tools are enabled, constrains argument values, overrides descriptions, and can route execution through Docker containers.
 
 ## Installation
 
@@ -59,6 +60,9 @@ climax examples/git.yaml
 # Combine multiple CLIs into one server
 climax examples/jj.yaml examples/git.yaml examples/docker.yaml
 
+# Apply a policy to restrict tools and arguments
+climax --policy my-project.policy.yaml examples/git.yaml
+
 # Enable logging to see commands being executed
 climax examples/git.yaml --log-level INFO
 ```
@@ -76,39 +80,40 @@ Starts the MCP stdio server. This is what MCP clients connect to.
 ```bash
 climax run examples/git.yaml
 climax run examples/git.yaml examples/docker.yaml --log-level INFO
+climax run --policy readonly.policy.yaml examples/git.yaml
 ```
 
 For backward compatibility, you can omit `run`:
 
 ```bash
 climax examples/git.yaml                # equivalent to: climax run examples/git.yaml
-climax examples/git.yaml --log-level DEBUG
+climax --policy policy.yaml examples/git.yaml
 ```
 
 **Options:**
 
 | Flag | Values | Default | Description |
 |------|--------|---------|-------------|
+| `--policy` | path to YAML | *(none)* | Policy file to restrict tools and constrain arguments |
 | `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `WARNING` | Log verbosity (logs go to stderr) |
 | `--transport` | `stdio` | `stdio` | MCP transport protocol |
 
 #### `climax validate` — Check config files
 
-Validates YAML configs against the schema and checks that the referenced CLI binary exists on PATH.
+Validates YAML configs against the schema and checks that the referenced CLI binary exists on PATH. If `--policy` is provided, the policy file is also validated.
 
 ```bash
 climax validate examples/git.yaml
 #   ✓ git-tools — 6 tool(s)
 # All 1 config(s) valid
 
-climax validate examples/git.yaml examples/docker.yaml examples/jj.yaml
+climax validate --policy policy.yaml examples/git.yaml
 #   ✓ git-tools — 6 tool(s)
-#   ✓ docker-tools — 5 tool(s)
-#   ✓ jj-tools — 8 tool(s)
-# All 3 config(s) valid
+#   ✓ policy — 3 tool rule(s)
+# All 1 config(s) valid
 ```
 
-If a config has errors, `validate` prints them and exits with code 1:
+If a config or policy has errors, `validate` prints them and exits with code 1:
 
 ```bash
 climax validate bad-config.yaml
@@ -119,7 +124,7 @@ climax validate bad-config.yaml
 
 #### `climax list` — Show available tools
 
-Displays a table of all tools defined across the given configs.
+Displays a table of all tools defined across the given configs. If `--policy` is provided, the list is filtered to show only enabled tools, with any policy constraints and description overrides applied.
 
 ```bash
 climax list examples/git.yaml
@@ -132,6 +137,10 @@ climax list examples/git.yaml
 # │ git_log    │ Show recent commit history   │ git log     │ max_count .. │
 # │ ...        │                              │             │              │
 # └────────────┴──────────────────────────────┴─────────────┴──────────────┘
+
+climax list --policy readonly.policy.yaml examples/git.yaml
+# git-tools — 2 tool(s)
+# ...only the tools enabled by the policy are shown...
 ```
 
 This is useful for reviewing what a config exposes before connecting it to an LLM.
@@ -176,6 +185,19 @@ Add to your `.mcp.json`:
     "dev-tools": {
       "command": "climax",
       "args": ["/path/to/jj.yaml", "/path/to/git.yaml", "/path/to/docker.yaml"]
+    }
+  }
+}
+```
+
+#### With a policy file
+
+```json
+{
+  "mcpServers": {
+    "git-readonly": {
+      "command": "climax",
+      "args": ["--policy", "/path/to/readonly.policy.yaml", "/path/to/git.yaml"]
     }
   }
 }
@@ -280,6 +302,138 @@ tools:
 | `positional` | bool | `false` | Place value directly in the command (no flag) |
 | `enum` | list | `null` | Restrict values to this set |
 
+## Policies
+
+A policy file separates **what tools exist** (the config, shareable) from **what's allowed** (the policy, per-user or per-deployment). This lets you share comprehensive tool configs while restricting access per environment.
+
+**No policy = today's behavior** — all tools enabled, local execution, no constraints.
+
+### Why use a policy?
+
+- Share a full `git.yaml` covering every subcommand, but only enable read-only tools for a particular deployment
+- Constrain argument values (e.g., file paths must match `^src/`, max count of 100)
+- Override tool descriptions for a specific context
+- Route all command execution through a Docker container for sandboxing
+
+### Policy YAML schema
+
+```yaml
+executor:                           # optional — execution environment
+  type: docker                      # "local" (default) or "docker"
+  image: "alpine/git:latest"        # required when type is docker
+  volumes:                          # bind mounts (env vars expanded)
+    - "${PROJECT_DIR}:/workspace"
+  working_dir: /workspace           # -w flag for docker run
+  network: none                     # --network flag for docker run
+
+default: disabled                   # "disabled" (default) or "enabled"
+                                    # disabled = only listed tools are exposed
+                                    # enabled  = all tools exposed, listed ones get constraints
+
+tools:
+  git_status: {}                    # enabled with no constraints
+  git_log:
+    description: "Show recent log (max 100)"   # overrides the config's description
+    args:
+      max_count:
+        max: 100                    # inclusive maximum for numeric args
+  git_add:
+    args:
+      path:
+        pattern: "^src/.*"          # regex (fullmatch) for string args
+  git_diff:
+    args:
+      commits:
+        min: 0                      # inclusive minimum for numeric args
+        max: 5
+```
+
+### Policy fields reference
+
+#### Top-level
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `executor` | object | `{type: "local"}` | Execution environment configuration |
+| `default` | string | `"disabled"` | Whether unmentioned tools are enabled or disabled |
+| `tools` | map | `{}` | Per-tool policies keyed by tool name |
+
+#### `executor`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | string | `"local"` | `"local"` or `"docker"` |
+| `image` | string | *(required for docker)* | Docker image to use |
+| `volumes` | list | `[]` | Bind mounts (`-v` flags). Environment variables are expanded. |
+| `working_dir` | string | `null` | Working directory inside the container (`-w` flag) |
+| `network` | string | `null` | Docker network mode (`--network` flag) |
+
+#### `tools.<name>`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `description` | string | `null` | Override the tool's description (shown to the LLM) |
+| `args` | map | `{}` | Per-argument constraints keyed by argument name |
+
+#### `tools.<name>.args.<arg>`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `pattern` | string | `null` | Regex pattern — value must fullmatch (for string args) |
+| `min` | number | `null` | Inclusive minimum (for numeric args) |
+| `max` | number | `null` | Inclusive maximum (for numeric args) |
+
+### Examples
+
+**Read-only Git policy** — only expose status, log, and diff:
+
+```yaml
+default: disabled
+tools:
+  git_status: {}
+  git_log:
+    args:
+      max_count:
+        max: 100
+  git_diff: {}
+```
+
+**Docker-sandboxed execution:**
+
+```yaml
+executor:
+  type: docker
+  image: alpine/git:latest
+  volumes:
+    - "${PROJECT_DIR}:/workspace"
+  working_dir: /workspace
+  network: none
+default: disabled
+tools:
+  git_status: {}
+  git_log: {}
+```
+
+**Allow all tools but constrain one:**
+
+```yaml
+default: enabled
+tools:
+  git_add:
+    args:
+      path:
+        pattern: "^src/.*"
+```
+
+### Behavior details
+
+- Unknown tool names in the policy are warned about and skipped (not an error)
+- Unknown argument names in a tool's policy are warned about and skipped
+- When `default: disabled`, only tools explicitly listed in `tools` are exposed
+- When `default: enabled`, all tools are exposed; listed tools get constraints/overrides applied
+- Argument validation happens before command execution — rejected calls never run the subprocess
+- Docker executor prepends `docker run --rm` with the configured flags to every command
+
 ## Generating Configs with an LLM
 
 The fastest way to create a config is to have an LLM generate it from your CLI's `--help` output. CLImax ships with a skill ([`skill/SKILL.md`](skill/SKILL.md)) that teaches LLMs exactly how to produce valid configs.
@@ -314,7 +468,9 @@ See [`examples/`](examples/) for ready-to-use configs:
 - Commands are executed via `asyncio.create_subprocess_exec` (no shell injection)
 - Commands time out after 30 seconds by default
 - The YAML author controls what commands are exposed — review configs before use
-- Consider read-only tool sets for untrusted environments
+- Use a **policy file** to restrict which tools are enabled and constrain argument values
+- Use the **Docker executor** to sandbox command execution in a container
+- Policy argument constraints use `re.fullmatch` — patterns must match the entire value
 
 ## License
 

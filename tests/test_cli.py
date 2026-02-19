@@ -11,9 +11,9 @@ from rich.console import Console
 from climax import cmd_validate, cmd_list, main
 
 
-def _make_args(configs):
-    """Create a minimal args namespace with configs list."""
-    return argparse.Namespace(configs=configs)
+def _make_args(configs, policy=None):
+    """Create a minimal args namespace with configs list and optional policy."""
+    return argparse.Namespace(configs=configs, policy=policy)
 
 
 def _capture_console():
@@ -181,3 +181,141 @@ class TestBackwardCompat:
                 main()
             args = mock_run.call_args[0][0]
             assert args.log_level == "DEBUG"
+
+
+class TestCmdValidatePolicy:
+    def test_validate_with_valid_policy(self, valid_yaml, minimal_policy_yaml):
+        console, buf = _capture_console()
+        rc = cmd_validate(
+            _make_args([str(valid_yaml)], policy=str(minimal_policy_yaml)),
+            console=console,
+        )
+        output = buf.getvalue()
+        assert rc == 0
+        assert "policy" in output
+        assert "1 tool rule(s)" in output
+
+    def test_validate_with_invalid_policy(self, valid_yaml, invalid_policy_yaml):
+        console, buf = _capture_console()
+        rc = cmd_validate(
+            _make_args([str(valid_yaml)], policy=str(invalid_policy_yaml)),
+            console=console,
+        )
+        output = buf.getvalue()
+        assert rc == 1
+        assert "✗" in output
+
+    def test_validate_with_missing_policy(self, valid_yaml, tmp_path):
+        console, buf = _capture_console()
+        rc = cmd_validate(
+            _make_args([str(valid_yaml)], policy=str(tmp_path / "nope.yaml")),
+            console=console,
+        )
+        assert rc == 1
+
+    def test_validate_no_policy(self, valid_yaml):
+        """Without --policy, validate works as before."""
+        console, buf = _capture_console()
+        rc = cmd_validate(_make_args([str(valid_yaml)]), console=console)
+        output = buf.getvalue()
+        assert rc == 0
+        assert "policy" not in output.lower()
+
+
+class TestCmdListPolicy:
+    def test_list_filtered_by_policy(self, tmp_path):
+        """Policy with default=disabled should filter tools in list."""
+        config = tmp_path / "tools.yaml"
+        config.write_text(textwrap.dedent("""\
+            name: test-tools
+            command: echo
+            tools:
+              - name: allowed
+                description: Allowed tool
+              - name: blocked
+                description: Blocked tool
+        """))
+        policy = tmp_path / "policy.yaml"
+        policy.write_text(textwrap.dedent("""\
+            default: disabled
+            tools:
+              allowed: {}
+        """))
+
+        console, buf = _capture_console()
+        rc = cmd_list(_make_args([str(config)], policy=str(policy)), console=console)
+        output = buf.getvalue()
+        assert rc == 0
+        assert "allowed" in output
+        assert "blocked" not in output
+        assert "1 tool(s)" in output
+
+    def test_list_shows_constraints(self, tmp_path):
+        config = tmp_path / "tools.yaml"
+        config.write_text(textwrap.dedent("""\
+            name: test-tools
+            command: echo
+            tools:
+              - name: search
+                description: Search
+                args:
+                  - name: query
+                    type: string
+                  - name: limit
+                    type: integer
+        """))
+        policy = tmp_path / "policy.yaml"
+        policy.write_text(textwrap.dedent("""\
+            default: disabled
+            tools:
+              search:
+                args:
+                  query:
+                    pattern: "^[a-z]+$"
+                  limit:
+                    max: 100
+        """))
+
+        console, buf = _capture_console()
+        rc = cmd_list(_make_args([str(config)], policy=str(policy)), console=console)
+        output = buf.getvalue()
+        assert rc == 0
+        assert "pattern=" in output
+        assert "max=" in output
+
+    def test_list_shows_executor(self, tmp_path):
+        config = tmp_path / "tools.yaml"
+        config.write_text(textwrap.dedent("""\
+            name: test-tools
+            command: echo
+            tools:
+              - name: hello
+                description: Hello
+        """))
+        policy = tmp_path / "policy.yaml"
+        policy.write_text(textwrap.dedent("""\
+            executor:
+              type: docker
+              image: alpine:latest
+            default: disabled
+            tools:
+              hello: {}
+        """))
+
+        console, buf = _capture_console()
+        rc = cmd_list(_make_args([str(config)], policy=str(policy)), console=console)
+        output = buf.getvalue()
+        assert rc == 0
+        assert "docker" in output.lower()
+        assert "alpine:latest" in output
+
+    def test_backward_compat_with_policy(self, valid_yaml, minimal_policy_yaml):
+        """--policy with backward compat run mode."""
+        with patch("climax.cmd_run") as mock_run:
+            with patch("sys.argv", [
+                "climax", "--policy", str(minimal_policy_yaml), str(valid_yaml),
+            ]):
+                main()
+            mock_run.assert_called_once()
+            args = mock_run.call_args[0][0]
+            assert args.policy == str(minimal_policy_yaml)

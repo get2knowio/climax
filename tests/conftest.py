@@ -4,7 +4,18 @@ import textwrap
 
 import pytest
 
-from climax import ArgType, CLImaxConfig, ToolArg, ToolDef
+from climax import (
+    ArgConstraint,
+    ArgType,
+    CLImaxConfig,
+    DefaultPolicy,
+    ExecutorConfig,
+    ExecutorType,
+    PolicyConfig,
+    ToolArg,
+    ToolDef,
+    ToolPolicy,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -148,5 +159,123 @@ def invalid_arg_type_yaml(tmp_path):
                 type: banana
     """)
     p = tmp_path / "bad_type.yaml"
+    p.write_text(content)
+    return p
+
+
+# ---------------------------------------------------------------------------
+# Policy model fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def minimal_policy():
+    return PolicyConfig(
+        tools={"hello": ToolPolicy()},
+    )
+
+
+@pytest.fixture
+def full_policy():
+    return PolicyConfig(
+        executor=ExecutorConfig(
+            type=ExecutorType.docker,
+            image="alpine/git:latest",
+            volumes=["${HOME}:/workspace"],
+            working_dir="/workspace",
+            network="none",
+        ),
+        default=DefaultPolicy.disabled,
+        tools={
+            "hello": ToolPolicy(
+                description="Overridden description",
+                args={"name": ArgConstraint(pattern="^[a-z]+$")},
+            ),
+        },
+    )
+
+
+@pytest.fixture
+def enabled_default_policy():
+    return PolicyConfig(
+        default=DefaultPolicy.enabled,
+        tools={
+            "hello": ToolPolicy(
+                description="Custom desc",
+                args={"name": ArgConstraint(pattern="^\\w+$")},
+            ),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Policy YAML file fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def minimal_policy_yaml(tmp_path):
+    content = textwrap.dedent("""\
+        tools:
+          hello: {}
+    """)
+    p = tmp_path / "minimal_policy.yaml"
+    p.write_text(content)
+    return p
+
+
+@pytest.fixture
+def full_policy_yaml(tmp_path):
+    content = textwrap.dedent("""\
+        executor:
+          type: docker
+          image: alpine/git:latest
+          volumes:
+            - "${HOME}:/workspace"
+          working_dir: /workspace
+          network: none
+        default: disabled
+        tools:
+          hello:
+            description: "Overridden description"
+            args:
+              name:
+                pattern: "^[a-z]+$"
+    """)
+    p = tmp_path / "full_policy.yaml"
+    p.write_text(content)
+    return p
+
+
+@pytest.fixture
+def invalid_policy_yaml(tmp_path):
+    """Policy with docker executor but no image — should fail validation."""
+    content = textwrap.dedent("""\
+        executor:
+          type: docker
+        tools:
+          hello: {}
+    """)
+    p = tmp_path / "invalid_policy.yaml"
+    p.write_text(content)
+    return p
+
+
+@pytest.fixture
+def constraint_policy_yaml(tmp_path):
+    """Policy with argument constraints for testing validation."""
+    content = textwrap.dedent("""\
+        default: disabled
+        tools:
+          hello:
+            args:
+              name:
+                pattern: "^[a-z]+$"
+          coreutils_echo:
+            args:
+              message:
+                pattern: "^[\\\\w\\\\s]+$"
+    """)
+    p = tmp_path / "constraint_policy.yaml"
     p.write_text(content)
     return p
