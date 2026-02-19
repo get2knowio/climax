@@ -5,28 +5,29 @@ from climax import ArgType, ToolArg, ToolDef, build_command
 
 class TestBuildCommand:
     def test_base_command_only(self):
-        tool = ToolDef(name="t")
+        tool = ToolDef(name="t", description="test")
         cmd = build_command("git", tool, {})
         assert cmd == ["git"]
 
     def test_subcommand(self):
-        tool = ToolDef(name="t", command="status")
+        tool = ToolDef(name="t", description="test", command="status")
         cmd = build_command("git", tool, {})
         assert cmd == ["git", "status"]
 
     def test_multi_word_subcommand(self):
-        tool = ToolDef(name="t", command="bookmark list")
+        tool = ToolDef(name="t", description="test", command="bookmark list")
         cmd = build_command("jj", tool, {})
         assert cmd == ["jj", "bookmark", "list"]
 
     def test_multi_word_base_command(self):
-        tool = ToolDef(name="t", command="serve")
+        tool = ToolDef(name="t", description="test", command="serve")
         cmd = build_command("python -m myapp", tool, {})
         assert cmd == ["python", "-m", "myapp", "serve"]
 
     def test_positional_arg(self):
         tool = ToolDef(
             name="t",
+            description="test",
             command="add",
             args=[ToolArg(name="path", positional=True, required=True)],
         )
@@ -36,6 +37,7 @@ class TestBuildCommand:
     def test_flag_arg(self):
         tool = ToolDef(
             name="t",
+            description="test",
             command="log",
             args=[ToolArg(name="count", type=ArgType.integer, flag="-n")],
         )
@@ -45,6 +47,7 @@ class TestBuildCommand:
     def test_boolean_true(self):
         tool = ToolDef(
             name="t",
+            description="test",
             command="status",
             args=[ToolArg(name="short", type=ArgType.boolean, flag="--short")],
         )
@@ -54,6 +57,7 @@ class TestBuildCommand:
     def test_boolean_false_omitted(self):
         tool = ToolDef(
             name="t",
+            description="test",
             command="status",
             args=[ToolArg(name="short", type=ArgType.boolean, flag="--short")],
         )
@@ -63,6 +67,7 @@ class TestBuildCommand:
     def test_auto_flag_generation(self):
         tool = ToolDef(
             name="t",
+            description="test",
             args=[ToolArg(name="my_arg", type=ArgType.string)],
         )
         cmd = build_command("app", tool, {"my_arg": "val"})
@@ -71,6 +76,7 @@ class TestBuildCommand:
     def test_default_used_when_not_provided(self):
         tool = ToolDef(
             name="t",
+            description="test",
             command="log",
             args=[ToolArg(name="count", type=ArgType.integer, flag="-n", default=10)],
         )
@@ -80,6 +86,7 @@ class TestBuildCommand:
     def test_default_overridden(self):
         tool = ToolDef(
             name="t",
+            description="test",
             command="log",
             args=[ToolArg(name="count", type=ArgType.integer, flag="-n", default=10)],
         )
@@ -89,6 +96,7 @@ class TestBuildCommand:
     def test_positional_before_flags(self):
         tool = ToolDef(
             name="t",
+            description="test",
             command="search",
             args=[
                 ToolArg(name="verbose", type=ArgType.boolean, flag="--verbose"),
@@ -102,6 +110,7 @@ class TestBuildCommand:
     def test_missing_optional_arg_omitted(self):
         tool = ToolDef(
             name="t",
+            description="test",
             args=[ToolArg(name="opt", type=ArgType.string, flag="--opt")],
         )
         cmd = build_command("app", tool, {})
@@ -110,6 +119,7 @@ class TestBuildCommand:
     def test_enum_value_passed_through(self):
         tool = ToolDef(
             name="t",
+            description="test",
             args=[
                 ToolArg(name="fmt", type=ArgType.string, flag="--format", enum=["json", "table"]),
             ],

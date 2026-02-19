@@ -68,7 +68,7 @@ class ToolArg(BaseModel):
 class ToolDef(BaseModel):
     """A single tool that maps to a CLI subcommand."""
     name: str
-    description: str = ""
+    description: str                 # required — shown to the LLM, avoids leaking command details
     command: str = ""                # subcommand(s) appended to base, e.g. "users list"
     args: list[ToolArg] = Field(default_factory=list)
 
@@ -309,7 +309,7 @@ def create_server(
             result.append(
                 types.Tool(
                     name=td.name,
-                    description=td.description or f"Run: {resolved.base_command} {td.command}",
+                    description=td.description,
                     inputSchema=build_input_schema(td.args),
                 )
             )

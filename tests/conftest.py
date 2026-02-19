@@ -128,6 +128,7 @@ def missing_command_yaml(tmp_path):
         name: broken
         tools:
           - name: oops
+            description: This should fail
     """)
     p = tmp_path / "no_command.yaml"
     p.write_text(content)
@@ -141,6 +142,7 @@ def invalid_arg_type_yaml(tmp_path):
         command: echo
         tools:
           - name: oops
+            description: This should fail
             args:
               - name: x
                 type: banana

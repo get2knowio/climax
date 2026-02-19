@@ -70,6 +70,7 @@ class TestCmdValidate:
             command: definitely_not_a_real_binary_xyz
             tools:
               - name: t
+                description: Test tool
         """)
         p = tmp_path / "notfound.yaml"
         p.write_text(content)
