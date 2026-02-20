@@ -1,5 +1,7 @@
 """Tests for build_docker_prefix — Docker executor command building."""
 
+import shutil
+import subprocess
 import textwrap
 from unittest.mock import patch, AsyncMock
 
@@ -279,3 +281,145 @@ class TestDockerE2E:
             cmd = mock_run.call_args[0][0]
             assert cmd[:4] == ["docker", "run", "--rm", "myimg:1.0"]
             assert expected_subcmd in cmd
+
+
+async def _call_tool(server, name, arguments=None):
+    """Helper to call a tool and return the unwrapped result."""
+    handlers = server.request_handlers
+    request = types.CallToolRequest(
+        method="tools/call",
+        params=types.CallToolRequestParams(name=name, arguments=arguments or {}),
+    )
+    return _unwrap(await handlers[types.CallToolRequest](request))
+
+
+@pytest.mark.skipif(not shutil.which("docker"), reason="Docker not available")
+class TestDockerReal:
+    """Real Docker integration tests — actually run containers."""
+
+    @pytest.fixture(scope="class", autouse=True)
+    def pull_alpine(self):
+        """Pull alpine:latest once per test session."""
+        subprocess.run(["docker", "pull", "alpine:latest"], check=True, capture_output=True)
+
+    async def test_real_docker_echo(self, tmp_path):
+        """Docker echo: positional arg through a real container."""
+        config_file = tmp_path / "tools.yaml"
+        config_file.write_text(textwrap.dedent("""\
+            name: docker-echo
+            command: echo
+            tools:
+              - name: docker_echo
+                description: Echo a message
+                args:
+                  - name: message
+                    type: string
+                    required: true
+                    positional: true
+        """))
+
+        _, tool_map = load_configs([str(config_file)])
+        policy = PolicyConfig(
+            executor=ExecutorConfig(type=ExecutorType.docker, image="alpine:latest"),
+            default=DefaultPolicy.disabled,
+            tools={"docker_echo": ToolPolicy()},
+        )
+        tool_map = apply_policy(tool_map, policy)
+        server = create_server("docker-echo", tool_map, executor=policy.executor)
+
+        result = await _call_tool(server, "docker_echo", {"message": "hello from docker"})
+        assert "hello from docker" in result.content[0].text
+
+    async def test_real_docker_with_volumes(self, tmp_path):
+        """Mount a host file into a container and cat it."""
+        test_file = tmp_path / "data.txt"
+        test_file.write_text("volume mount works")
+
+        config_file = tmp_path / "tools.yaml"
+        config_file.write_text(textwrap.dedent("""\
+            name: docker-cat
+            command: cat
+            tools:
+              - name: docker_cat
+                description: Cat a file
+                args:
+                  - name: path
+                    type: string
+                    required: true
+                    positional: true
+        """))
+
+        _, tool_map = load_configs([str(config_file)])
+        policy = PolicyConfig(
+            executor=ExecutorConfig(
+                type=ExecutorType.docker,
+                image="alpine:latest",
+                volumes=[f"{tmp_path}:/mnt"],
+            ),
+            default=DefaultPolicy.disabled,
+            tools={"docker_cat": ToolPolicy()},
+        )
+        tool_map = apply_policy(tool_map, policy)
+        server = create_server("docker-cat", tool_map, executor=policy.executor)
+
+        result = await _call_tool(server, "docker_cat", {"path": "/mnt/data.txt"})
+        assert "volume mount works" in result.content[0].text
+
+    async def test_real_docker_network_none(self, tmp_path):
+        """Container runs successfully with network disabled."""
+        config_file = tmp_path / "tools.yaml"
+        config_file.write_text(textwrap.dedent("""\
+            name: docker-echo
+            command: echo
+            tools:
+              - name: docker_echo
+                description: Echo a message
+                args:
+                  - name: message
+                    type: string
+                    required: true
+                    positional: true
+        """))
+
+        _, tool_map = load_configs([str(config_file)])
+        policy = PolicyConfig(
+            executor=ExecutorConfig(
+                type=ExecutorType.docker,
+                image="alpine:latest",
+                network="none",
+            ),
+            default=DefaultPolicy.disabled,
+            tools={"docker_echo": ToolPolicy()},
+        )
+        tool_map = apply_policy(tool_map, policy)
+        server = create_server("docker-echo", tool_map, executor=policy.executor)
+
+        result = await _call_tool(server, "docker_echo", {"message": "no network"})
+        assert "no network" in result.content[0].text
+
+    async def test_real_docker_working_dir(self, tmp_path):
+        """Container respects working_dir setting."""
+        config_file = tmp_path / "tools.yaml"
+        config_file.write_text(textwrap.dedent("""\
+            name: docker-pwd
+            command: pwd
+            tools:
+              - name: docker_pwd
+                description: Print working directory
+        """))
+
+        _, tool_map = load_configs([str(config_file)])
+        policy = PolicyConfig(
+            executor=ExecutorConfig(
+                type=ExecutorType.docker,
+                image="alpine:latest",
+                working_dir="/workspace",
+            ),
+            default=DefaultPolicy.disabled,
+            tools={"docker_pwd": ToolPolicy()},
+        )
+        tool_map = apply_policy(tool_map, policy)
+        server = create_server("docker-pwd", tool_map, executor=policy.executor)
+
+        result = await _call_tool(server, "docker_pwd")
+        assert result.content[0].text.strip() == "/workspace"
