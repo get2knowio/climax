@@ -1,10 +1,23 @@
 [project]
-name = "climax"
+name = "climax-mcp"
 version = "0.2.0"
 description = "Expose any CLI as MCP tools via YAML configuration"
 requires-python = ">=3.11"
 readme = "README.md"
 license = {file = "LICENSE"}
+authors = [{name = "get2know.io"}]
+keywords = ["mcp", "cli", "yaml", "tools", "llm", "model-context-protocol"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Utilities",
+]
 dependencies = [
     "mcp>=1.7",
     "pyyaml>=6.0",
@@ -15,6 +28,11 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 
+[project.urls]
+Homepage = "https://github.com/get2knowio/climax"
+Repository = "https://github.com/get2knowio/climax"
+Issues = "https://github.com/get2knowio/climax/issues"
+
 [project.scripts]
 climax = "climax:main"
 
@@ -22,8 +40,9 @@ climax = "climax:main"
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
-[tool.hatchling.build]
-force-include = {"skill/SKILL.md" = "skill/SKILL.md", "configs" = "configs"}
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+only-include = ["climax.py", "configs", "skill"]
 
 [build-system]
 requires = ["hatchling"]
