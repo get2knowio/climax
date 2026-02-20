@@ -181,7 +181,7 @@ After generating a config, mentally verify:
 
 ## Output
 
-Save the generated config as `<cli>.yaml`. If the user has an existing CLImax project, save to the `examples/` directory. The file should be immediately usable:
+Save the generated config as `<cli>.yaml`. If the user has an existing CLImax project, save to the `configs/` directory. The file should be immediately usable:
 
 ```bash
 climax <cli>.yaml --log-level INFO

@@ -54,17 +54,20 @@ uv sync       # or: pip install -e .
 ## Quick Start
 
 ```bash
-# Run with a config file — starts an MCP server over stdio
-climax examples/git.yaml
+# Run with a bundled config by name — starts an MCP server over stdio
+climax git
 
 # Combine multiple CLIs into one server
-climax examples/jj.yaml examples/git.yaml examples/docker.yaml
+climax jj git docker
 
 # Apply a policy to restrict tools and arguments
-climax --policy my-project.policy.yaml examples/git.yaml
+climax --policy my-project.policy.yaml git
 
 # Enable logging to see commands being executed
-climax examples/git.yaml --log-level INFO
+climax git --log-level INFO
+
+# Use a custom config file (path or .yaml extension)
+climax my-config.yaml
 ```
 
 ## Creating Configs
@@ -122,19 +125,19 @@ CLImax provides three subcommands for working with configs:
 
 #### `climax run` — Start the MCP server
 
-Starts the MCP stdio server. This is what MCP clients connect to.
+Starts the MCP stdio server. This is what MCP clients connect to. Configs can be referenced by bare name (resolves to bundled configs) or by file path.
 
 ```bash
-climax run examples/git.yaml
-climax run examples/git.yaml examples/docker.yaml --log-level INFO
-climax run --policy readonly.policy.yaml examples/git.yaml
+climax run git
+climax run git docker --log-level INFO
+climax run --policy readonly.policy.yaml git
 ```
 
 For backward compatibility, you can omit `run`:
 
 ```bash
-climax examples/git.yaml                # equivalent to: climax run examples/git.yaml
-climax --policy policy.yaml examples/git.yaml
+climax git                        # equivalent to: climax run git
+climax --policy policy.yaml git
 ```
 
 **Options:**
@@ -156,11 +159,11 @@ climax --policy policy.yaml examples/git.yaml
 Validates YAML configs against the schema and checks that the referenced CLI binary exists on PATH. If `--policy` is provided, the policy file is also validated.
 
 ```bash
-climax validate examples/git.yaml
+climax validate git
 #   ✓ git-tools — 6 tool(s)
 # All 1 config(s) valid
 
-climax validate --policy policy.yaml examples/git.yaml
+climax validate --policy policy.yaml git
 #   ✓ git-tools — 6 tool(s)
 #   ✓ policy — 3 tool rule(s)
 # All 1 config(s) valid
@@ -179,8 +182,21 @@ climax validate bad-config.yaml
 
 Displays a table of all tools defined across the given configs. If `--policy` is provided, the list is filtered to show only enabled tools, with any policy constraints and description overrides applied.
 
+With no arguments, lists the available bundled config names:
+
 ```bash
-climax list examples/git.yaml
+climax list
+# Bundled configs:
+#   docker
+#   git
+#   jj
+#   obsidian
+```
+
+With a config name or path, shows the tools table:
+
+```bash
+climax list git
 # git-tools — 6 tool(s)
 #
 # ┌────────────┬──────────────────────────────┬─────────────┬──────────────┐
@@ -191,7 +207,7 @@ climax list examples/git.yaml
 # │ ...        │                              │             │              │
 # └────────────┴──────────────────────────────┴─────────────┴──────────────┘
 
-climax list --policy readonly.policy.yaml examples/git.yaml
+climax list --policy readonly.policy.yaml git
 # git-tools — 2 tool(s)
 # ...only the tools enabled by the policy are shown...
 ```
@@ -406,13 +422,16 @@ tools:
 
 ## Examples
 
-See [`examples/`](examples/) for ready-to-use configs:
+CLImax ships with bundled configs in [`configs/`](configs/) — usable by bare name (`climax git`, `climax list docker`):
 
-- [`git.yaml`](examples/git.yaml) — Common Git operations (status, log, diff, branch, add, commit)
-- [`jj.yaml`](examples/jj.yaml) — Jujutsu version control (status, log, diff, describe, new, bookmarks, push)
-- [`docker.yaml`](examples/docker.yaml) — Docker container/image inspection (ps, images, logs, inspect, compose ps)
-- [`obsidian.yaml`](examples/obsidian.yaml) — Obsidian vault management (53 tools — read, write, search, tags, links, tasks, daily notes, properties). Uses inline flags for Obsidian's `key=value` argument style.
-- [`coreutils.yaml`](examples/coreutils.yaml) — Simple echo-based tools (useful for testing)
+- [`git.yaml`](configs/git.yaml) — Common Git operations (status, log, diff, branch, add, commit)
+- [`jj.yaml`](configs/jj.yaml) — Jujutsu version control (status, log, diff, describe, new, bookmarks, push)
+- [`docker.yaml`](configs/docker.yaml) — Docker container/image inspection (ps, images, logs, inspect, compose ps)
+- [`obsidian.yaml`](configs/obsidian.yaml) — Obsidian vault management (53 tools — read, write, search, tags, links, tasks, daily notes, properties). Uses inline flags for Obsidian's `key=value` argument style.
+
+The `examples/` directory contains test-only configs:
+
+- [`coreutils.yaml`](examples/coreutils.yaml) — Simple echo-based tools (used by e2e tests)
 
 ## Config Reference
 

@@ -46,6 +46,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("climax")
 
+CONFIGS_DIR = Path(__file__).parent / "configs"
+
 # Optional file log: set CLIMAX_LOG_FILE to enable persistent logging
 _log_file = os.environ.get("CLIMAX_LOG_FILE")
 if _log_file:
@@ -164,9 +166,24 @@ class PolicyConfig(BaseModel):
 # YAML → Config
 # ---------------------------------------------------------------------------
 
+def _resolve_config(name_or_path: str | Path) -> Path:
+    """Resolve a config name or path to an actual file path.
+
+    If the string contains '/' or ends with '.yaml'/'.yml', treat as a file path.
+    Otherwise, look up a bundled config by name in CONFIGS_DIR.
+    """
+    s = str(name_or_path)
+    if "/" in s or s.endswith(".yaml") or s.endswith(".yml"):
+        return Path(s)
+    bundled = CONFIGS_DIR / f"{s}.yaml"
+    if bundled.exists():
+        return bundled
+    return Path(s)
+
+
 def load_config(path: str | Path) -> CLImaxConfig:
     """Load and validate a YAML config file."""
-    raw = Path(path).read_text()
+    raw = _resolve_config(path).read_text()
     data = yaml.safe_load(raw)
     return CLImaxConfig(**data)
 
@@ -659,8 +676,19 @@ def cmd_validate(args, console: Console | None = None) -> int:
 
 
 def cmd_list(args, console: Console | None = None) -> int:
-    """List all tools from the given config files."""
+    """List all tools from the given config files, or list bundled configs."""
     console = console or Console()
+
+    if not args.configs:
+        # No configs given — list available bundled config names
+        names = sorted(p.stem for p in CONFIGS_DIR.glob("*.yaml"))
+        if names:
+            console.print("[bold]Bundled configs:[/bold]\n")
+            for name in names:
+                console.print(f"  {name}")
+        else:
+            console.print("[dim]No bundled configs found.[/dim]")
+        return 0
 
     try:
         server_name, tool_map = load_configs(args.configs)
@@ -837,7 +865,7 @@ def main():
 
     # --- list ---
     p_list = subparsers.add_parser("list", help="List tools from config file(s)")
-    p_list.add_argument("configs", nargs="+", metavar="CONFIG")
+    p_list.add_argument("configs", nargs="*", metavar="CONFIG")
     _add_policy_arg(p_list)
 
     # --- run ---

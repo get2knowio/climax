@@ -168,6 +168,52 @@ class TestCmdList:
         assert output.index("alpha") < output.index("middle") < output.index("zebra")
 
 
+class TestBundledNameResolution:
+    def test_list_no_args_shows_bundled(self):
+        """cmd_list with empty configs lists bundled config names."""
+        console, buf = _capture_console()
+        rc = cmd_list(_make_args([]), console=console)
+        output = buf.getvalue()
+        assert rc == 0
+        assert "git" in output
+        assert "docker" in output
+
+    def test_list_bundled_by_name(self):
+        """cmd_list with a bare name resolves to bundled config."""
+        console, buf = _capture_console()
+        rc = cmd_list(_make_args(["git"]), console=console)
+        output = buf.getvalue()
+        assert rc == 0
+        assert "tool(s)" in output
+
+    def test_validate_bundled_by_name(self):
+        """cmd_validate with a bare name resolves to bundled config."""
+        console, buf = _capture_console()
+        rc = cmd_validate(_make_args(["git"]), console=console)
+        output = buf.getvalue()
+        assert rc == 0
+        assert "✓" in output
+
+    def test_run_bundled_by_name(self):
+        """cmd_run with a bare name resolves to bundled config."""
+        import argparse
+        args = argparse.Namespace(
+            configs=["git"],
+            policy=None,
+            log_level="WARNING",
+        )
+        with patch("climax.asyncio.run"):
+            cmd_run(args)
+
+    def test_unknown_bundled_name_errors(self):
+        """cmd_validate with an unknown name fails with a clear error."""
+        console, buf = _capture_console()
+        rc = cmd_validate(_make_args(["nonexistent"]), console=console)
+        output = buf.getvalue()
+        assert rc == 1
+        assert "✗" in output
+
+
 class TestBackwardCompat:
     def test_no_subcommand_runs_as_run(self, valid_yaml):
         """climax config.yaml should work the same as climax run config.yaml."""

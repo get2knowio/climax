@@ -98,16 +98,16 @@ class TestLoadConfigs:
         assert resolved.working_dir == "/tmp"
 
 
-class TestExampleConfigs:
-    """Smoke tests for example YAML files shipped with the project."""
+class TestBundledConfigs:
+    """Smoke tests for bundled YAML configs shipped with the package."""
 
     @pytest.mark.parametrize("filename", ["git.yaml", "jj.yaml", "docker.yaml", "obsidian.yaml"])
-    def test_example_loads(self, filename):
+    def test_bundled_loads(self, filename):
         from pathlib import Path
 
-        example = Path(__file__).parent.parent / "examples" / filename
-        if not example.exists():
+        bundled = Path(__file__).parent.parent / "configs" / filename
+        if not bundled.exists():
             pytest.skip(f"{filename} not found")
-        config = load_config(example)
+        config = load_config(bundled)
         assert len(config.tools) > 0
         assert config.command

@@ -23,7 +23,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.hatchling.build]
-force-include = {"skill/SKILL.md" = "skill/SKILL.md"}
+force-include = {"skill/SKILL.md" = "skill/SKILL.md", "configs" = "configs"}
 
 [build-system]
 requires = ["hatchling"]

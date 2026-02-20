@@ -19,10 +19,11 @@ uv sync --extra test
 uv run pytest -v
 
 # CLI subcommands
-uv run climax validate examples/git.yaml    # check config validity
-uv run climax list examples/git.yaml        # show tools table
-uv run climax run examples/git.yaml         # start MCP stdio (explicit)
-uv run climax examples/git.yaml             # start MCP stdio (backward compat)
+uv run climax validate git                  # check config validity (bundled name)
+uv run climax list                          # list available bundled configs
+uv run climax list git                      # show tools table
+uv run climax run git                       # start MCP stdio (explicit)
+uv run climax git                           # start MCP stdio (backward compat)
 ```
 
 ## Testing
