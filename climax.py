@@ -736,6 +736,31 @@ def cmd_list(args, console: Console | None = None) -> int:
     return 0
 
 
+def cmd_skill(args, console: Console | None = None) -> int:
+    """Print, locate, or install the CLImax skill file."""
+    console = console or Console()
+    skill_path = Path(__file__).parent / "skill" / "SKILL.md"
+
+    if not skill_path.exists():
+        console.print("[red]Skill file not found:[/red] expected at " + str(skill_path))
+        return 1
+
+    if getattr(args, "path", False):
+        console.print(str(skill_path.resolve()))
+        return 0
+
+    if getattr(args, "install", False):
+        dest = Path.cwd() / ".claude" / "commands" / "climax-config.md"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(skill_path, dest)
+        console.print(f"Installed to {dest}")
+        return 0
+
+    # Default: print contents
+    console.print(skill_path.read_text(), highlight=False)
+    return 0
+
+
 def cmd_run(args) -> None:
     """Start the MCP server (stdio transport)."""
     logger.setLevel(getattr(logging, args.log_level))
@@ -787,7 +812,7 @@ def _build_run_parser(parser=None):
 def main():
     import argparse
 
-    SUBCOMMANDS = {"validate", "list", "run"}
+    SUBCOMMANDS = {"validate", "list", "run", "skill"}
 
     # Check if the first positional arg is a known subcommand
     argv = sys.argv[1:]
@@ -818,6 +843,12 @@ def main():
     # --- run ---
     _build_run_parser(subparsers.add_parser("run", help="Start MCP server"))
 
+    # --- skill ---
+    p_skill = subparsers.add_parser("skill", help="Print or install the CLImax skill file")
+    skill_group = p_skill.add_mutually_exclusive_group()
+    skill_group.add_argument("--path", action="store_true", help="Print the path to SKILL.md")
+    skill_group.add_argument("--install", action="store_true", help="Install to .claude/commands/climax-config.md")
+
     args = parser.parse_args(argv)
 
     if args.subcommand == "validate":
@@ -826,6 +857,8 @@ def main():
         sys.exit(cmd_list(args))
     elif args.subcommand == "run":
         cmd_run(args)
+    elif args.subcommand == "skill":
+        sys.exit(cmd_skill(args))
 
 
 if __name__ == "__main__":

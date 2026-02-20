@@ -12,7 +12,7 @@ import pytest
 from rich.console import Console
 
 import climax
-from climax import cmd_validate, cmd_list, cmd_run, main
+from climax import cmd_validate, cmd_list, cmd_run, cmd_skill, main
 
 
 def _make_args(configs, policy=None):
@@ -374,6 +374,46 @@ class TestCmdListPolicy:
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             assert args.policy == str(minimal_policy_yaml)
+
+
+class TestCmdSkill:
+    def _make_skill_args(self, path=False, install=False):
+        return argparse.Namespace(path=path, install=install)
+
+    def test_skill_prints_content(self):
+        console, buf = _capture_console()
+        rc = cmd_skill(self._make_skill_args(), console=console)
+        output = buf.getvalue()
+        assert rc == 0
+        assert "CLImax Config Generator" in output
+
+    def test_skill_path(self):
+        console, buf = _capture_console()
+        rc = cmd_skill(self._make_skill_args(path=True), console=console)
+        output = buf.getvalue().strip()
+        assert rc == 0
+        assert output.endswith("SKILL.md")
+        assert os.path.isfile(output)
+
+    def test_skill_install(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        console, buf = _capture_console()
+        rc = cmd_skill(self._make_skill_args(install=True), console=console)
+        output = buf.getvalue()
+        assert rc == 0
+        assert "Installed to" in output
+        dest = tmp_path / ".claude" / "commands" / "climax-config.md"
+        assert dest.exists()
+        assert "CLImax Config Generator" in dest.read_text()
+
+    def test_skill_install_existing_dir(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".claude" / "commands").mkdir(parents=True)
+        console, buf = _capture_console()
+        rc = cmd_skill(self._make_skill_args(install=True), console=console)
+        assert rc == 0
+        dest = tmp_path / ".claude" / "commands" / "climax-config.md"
+        assert dest.exists()
 
 
 class TestCmdRun:

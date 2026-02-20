@@ -67,6 +67,53 @@ climax --policy my-project.policy.yaml examples/git.yaml
 climax examples/git.yaml --log-level INFO
 ```
 
+## Creating Configs
+
+The easiest way to create a config is to let an LLM generate it. CLImax ships with a skill ([`skill/SKILL.md`](skill/SKILL.md)) that teaches agents how to read `--help` output and produce valid YAML configs automatically.
+
+### With Claude Code (recommended)
+
+Install the CLImax skill into your project, then ask Claude to generate configs:
+
+```bash
+climax skill --install   # copies skill to .claude/commands/climax-config.md
+```
+
+Now just ask:
+
+```
+> Create a CLImax config for kubectl
+```
+
+The agent will run `kubectl --help`, inspect relevant subcommands, and generate a ready-to-use YAML config. No manual YAML writing required.
+
+### With any LLM
+
+Capture your CLI's help output and paste it into any LLM along with the contents of [`skill/SKILL.md`](skill/SKILL.md):
+
+```bash
+# Capture help output
+my-cli --help > /tmp/help.txt
+my-cli subcommand --help >> /tmp/help.txt
+
+# Paste both into ChatGPT, Claude, etc.
+```
+
+The skill covers the full YAML schema, naming conventions, argument mapping patterns, and a validation checklist — everything the LLM needs to produce a correct config.
+
+### Validate the result
+
+After generating a config, verify it:
+
+```bash
+climax validate my-config.yaml
+climax list my-config.yaml
+```
+
+### Writing configs by hand
+
+If you prefer to write configs manually, see the [Config Reference](#config-reference) section below.
+
 ## Usage
 
 ### CLI Subcommands
@@ -225,91 +272,6 @@ If you haven't installed the package, use `python` directly:
 }
 ```
 
-## Writing a Config
-
-A YAML config describes one CLI and the tools (subcommands) to expose.
-
-### Minimal example
-
-```yaml
-name: my-tools
-description: "My CLI tools"
-command: my-cli
-
-tools:
-  - name: my_cli_status
-    description: "Show status"
-    command: status
-```
-
-This exposes a single MCP tool `my_cli_status` that runs `my-cli status`.
-
-### Full config reference
-
-```yaml
-name: my-tools                    # server name (used in logs and client UI)
-description: "What these tools do"
-command: my-cli                   # base command (on PATH or absolute path)
-env:                              # optional extra env vars for subprocess
-  MY_VAR: "value"
-working_dir: /some/path           # optional working directory
-
-tools:
-  - name: my_cli_action           # tool name (snake_case)
-    description: "What this does"  # shown to the LLM
-    command: "sub command"         # appended to base → `my-cli sub command`
-    timeout: 120                   # optional per-tool timeout in seconds (default: 30)
-    args:
-      - name: target
-        type: string              # string | integer | number | boolean
-        description: "The target"
-        required: true
-        positional: true          # no flag, value placed directly
-
-      - name: format
-        type: string
-        flag: "--format"          # becomes `--format <value>`
-        enum: ["json", "table"]   # restrict values
-
-      - name: verbose
-        type: boolean
-        flag: "--verbose"         # boolean: flag present if true, absent if false
-
-      - name: count
-        type: integer
-        flag: "-n"
-        default: 10               # used when the argument is not provided
-```
-
-### Argument types
-
-| Type | JSON Schema | CLI Behavior |
-|------|------------|--------------|
-| `string` | `"string"` | `--flag value` |
-| `integer` | `"integer"` | `--flag 42` |
-| `number` | `"number"` | `--flag 3.14` |
-| `boolean` | `"boolean"` | `--flag` (present) or omitted |
-
-### Argument modes
-
-- **Flag args**: Have `flag: "--something"`. The value follows the flag as a separate token.
-- **Inline flags**: Have `flag: "key="` (ending with `=`). The flag and value are joined as a single token (`key=value`). Useful for CLIs that use `key=value` syntax instead of `--key value` (e.g., Obsidian CLI).
-- **Positional args**: Have `positional: true`. The value is placed directly in the command, in definition order.
-- **Auto-flag**: If neither `flag` nor `positional` is set, a flag is auto-generated from the arg name (`my_arg` → `--my-arg`).
-
-### Argument fields
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `name` | string | *(required)* | Argument name (used as the JSON property name) |
-| `description` | string | `""` | Shown to the LLM to explain the argument |
-| `type` | string | `"string"` | One of `string`, `integer`, `number`, `boolean` |
-| `required` | bool | `false` | Whether the LLM must provide this argument |
-| `default` | any | `null` | Default value used when argument is not provided |
-| `flag` | string | `null` | CLI flag (e.g. `"--format"`, `"-n"`) |
-| `positional` | bool | `false` | Place value directly in the command (no flag) |
-| `enum` | list | `null` | Restrict values to this set |
-
 ## Policies
 
 A policy file separates **what tools exist** (the config, shareable) from **what's allowed** (the policy, per-user or per-deployment). This lets you share comprehensive tool configs while restricting access per environment.
@@ -442,26 +404,6 @@ tools:
 - Argument validation happens before command execution — rejected calls never run the subprocess
 - Docker executor prepends `docker run --rm` with the configured flags to every command
 
-## Generating Configs with an LLM
-
-The fastest way to create a config is to have an LLM generate it from your CLI's `--help` output. CLImax ships with a skill ([`skill/SKILL.md`](skill/SKILL.md)) that teaches LLMs exactly how to produce valid configs.
-
-**With Claude Code or any skill-aware agent:**
-
-Point the agent at the skill and ask it to generate a config for your CLI. It will capture the help output, select the right commands, and produce a ready-to-use YAML file.
-
-**Manually:**
-
-```bash
-# Capture help output
-my-cli --help > /tmp/help.txt
-my-cli subcommand --help >> /tmp/help.txt
-
-# Paste into any LLM along with the contents of skill/SKILL.md
-```
-
-The skill covers the full YAML schema, naming conventions, argument mapping patterns, and a validation checklist.
-
 ## Examples
 
 See [`examples/`](examples/) for ready-to-use configs:
@@ -471,6 +413,91 @@ See [`examples/`](examples/) for ready-to-use configs:
 - [`docker.yaml`](examples/docker.yaml) — Docker container/image inspection (ps, images, logs, inspect, compose ps)
 - [`obsidian.yaml`](examples/obsidian.yaml) — Obsidian vault management (53 tools — read, write, search, tags, links, tasks, daily notes, properties). Uses inline flags for Obsidian's `key=value` argument style.
 - [`coreutils.yaml`](examples/coreutils.yaml) — Simple echo-based tools (useful for testing)
+
+## Config Reference
+
+A YAML config describes one CLI and the tools (subcommands) to expose.
+
+### Minimal example
+
+```yaml
+name: my-tools
+description: "My CLI tools"
+command: my-cli
+
+tools:
+  - name: my_cli_status
+    description: "Show status"
+    command: status
+```
+
+This exposes a single MCP tool `my_cli_status` that runs `my-cli status`.
+
+### Full config schema
+
+```yaml
+name: my-tools                    # server name (used in logs and client UI)
+description: "What these tools do"
+command: my-cli                   # base command (on PATH or absolute path)
+env:                              # optional extra env vars for subprocess
+  MY_VAR: "value"
+working_dir: /some/path           # optional working directory
+
+tools:
+  - name: my_cli_action           # tool name (snake_case)
+    description: "What this does"  # shown to the LLM
+    command: "sub command"         # appended to base → `my-cli sub command`
+    timeout: 120                   # optional per-tool timeout in seconds (default: 30)
+    args:
+      - name: target
+        type: string              # string | integer | number | boolean
+        description: "The target"
+        required: true
+        positional: true          # no flag, value placed directly
+
+      - name: format
+        type: string
+        flag: "--format"          # becomes `--format <value>`
+        enum: ["json", "table"]   # restrict values
+
+      - name: verbose
+        type: boolean
+        flag: "--verbose"         # boolean: flag present if true, absent if false
+
+      - name: count
+        type: integer
+        flag: "-n"
+        default: 10               # used when the argument is not provided
+```
+
+### Argument types
+
+| Type | JSON Schema | CLI Behavior |
+|------|------------|--------------|
+| `string` | `"string"` | `--flag value` |
+| `integer` | `"integer"` | `--flag 42` |
+| `number` | `"number"` | `--flag 3.14` |
+| `boolean` | `"boolean"` | `--flag` (present) or omitted |
+
+### Argument modes
+
+- **Flag args**: Have `flag: "--something"`. The value follows the flag as a separate token.
+- **Inline flags**: Have `flag: "key="` (ending with `=`). The flag and value are joined as a single token (`key=value`). Useful for CLIs that use `key=value` syntax instead of `--key value` (e.g., Obsidian CLI).
+- **Positional args**: Have `positional: true`. The value is placed directly in the command, in definition order.
+- **Auto-flag**: If neither `flag` nor `positional` is set, a flag is auto-generated from the arg name (`my_arg` → `--my-arg`).
+
+### Argument fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `name` | string | *(required)* | Argument name (used as the JSON property name) |
+| `description` | string | `""` | Shown to the LLM to explain the argument |
+| `type` | string | `"string"` | One of `string`, `integer`, `number`, `boolean` |
+| `required` | bool | `false` | Whether the LLM must provide this argument |
+| `default` | any | `null` | Default value used when argument is not provided |
+| `flag` | string | `null` | CLI flag (e.g. `"--format"`, `"-n"`) |
+| `positional` | bool | `false` | Place value directly in the command (no flag) |
+| `enum` | list | `null` | Restrict values to this set |
 
 ## Security Notes
 
