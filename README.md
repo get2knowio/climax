@@ -98,6 +98,12 @@ climax --policy policy.yaml examples/git.yaml
 | `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `WARNING` | Log verbosity (logs go to stderr) |
 | `--transport` | `stdio` | `stdio` | MCP transport protocol |
 
+**Environment variables:**
+
+| Variable | Description |
+|----------|-------------|
+| `CLIMAX_LOG_FILE` | Path to a log file for persistent logging (in addition to stderr). Useful for debugging MCP servers where stderr may not be visible. Always logs at DEBUG level. |
+
 #### `climax validate` — Check config files
 
 Validates YAML configs against the schema and checks that the referenced CLI binary exists on PATH. If `--policy` is provided, the policy file is also validated.
@@ -252,6 +258,7 @@ tools:
   - name: my_cli_action           # tool name (snake_case)
     description: "What this does"  # shown to the LLM
     command: "sub command"         # appended to base → `my-cli sub command`
+    timeout: 120                   # optional per-tool timeout in seconds (default: 30)
     args:
       - name: target
         type: string              # string | integer | number | boolean
@@ -285,7 +292,8 @@ tools:
 
 ### Argument modes
 
-- **Flag args**: Have `flag: "--something"`. The value follows the flag.
+- **Flag args**: Have `flag: "--something"`. The value follows the flag as a separate token.
+- **Inline flags**: Have `flag: "key="` (ending with `=`). The flag and value are joined as a single token (`key=value`). Useful for CLIs that use `key=value` syntax instead of `--key value` (e.g., Obsidian CLI).
 - **Positional args**: Have `positional: true`. The value is placed directly in the command, in definition order.
 - **Auto-flag**: If neither `flag` nor `positional` is set, a flag is auto-generated from the arg name (`my_arg` → `--my-arg`).
 
@@ -461,12 +469,13 @@ See [`examples/`](examples/) for ready-to-use configs:
 - [`git.yaml`](examples/git.yaml) — Common Git operations (status, log, diff, branch, add, commit)
 - [`jj.yaml`](examples/jj.yaml) — Jujutsu version control (status, log, diff, describe, new, bookmarks, push)
 - [`docker.yaml`](examples/docker.yaml) — Docker container/image inspection (ps, images, logs, inspect, compose ps)
+- [`obsidian.yaml`](examples/obsidian.yaml) — Obsidian vault management (53 tools — read, write, search, tags, links, tasks, daily notes, properties). Uses inline flags for Obsidian's `key=value` argument style.
 - [`coreutils.yaml`](examples/coreutils.yaml) — Simple echo-based tools (useful for testing)
 
 ## Security Notes
 
 - Commands are executed via `asyncio.create_subprocess_exec` (no shell injection)
-- Commands time out after 30 seconds by default
+- Commands time out after 30 seconds by default — override per-tool with `timeout:` in the config
 - The YAML author controls what commands are exposed — review configs before use
 - Use a **policy file** to restrict which tools are enabled and constrain argument values
 - Use the **Docker executor** to sandbox command execution in a container
