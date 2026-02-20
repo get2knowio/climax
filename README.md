@@ -10,7 +10,7 @@ Instead of writing a custom MCP server for every CLI tool, write a YAML file tha
 ┌──────────────┐     ┌──────────────────┐     ┌─────────────┐
 │  LLM Client  │────▶│     CLImax       │────▶│  Your CLI   │
 │  (Claude,    │ MCP │  (reads YAML,    │ sub │  (git, jj,  │
-│   Cursor,    │◀────│   runs commands)  │◀────│   docker..) │
+│   Cursor,    │◀────│   runs commands) │◀────│   docker..) │
 │   etc.)      │     └──────────────────┘proc │             │
 └──────────────┘         ▲         ▲          └─────────────┘
                          │         │
