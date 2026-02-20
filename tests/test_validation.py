@@ -115,3 +115,17 @@ class TestValidateArguments:
         assert validate_arguments({"n": 0.0}, tool, constraints) == []
         assert validate_arguments({"n": 1.0}, tool, constraints) == []
         assert validate_arguments({"n": 0.5}, tool, constraints) == []
+
+    def test_max_on_non_numeric_skipped(self):
+        """Max constraint on a non-numeric string should be silently skipped."""
+        tool = _make_tool(ToolArg(name="name", type=ArgType.string))
+        constraints = {"name": ArgConstraint(max=100)}
+        errors = validate_arguments({"name": "hello"}, tool, constraints)
+        assert errors == []
+
+    def test_min_max_on_none_value_skipped(self):
+        """Min/max on None value should be silently skipped (TypeError)."""
+        tool = _make_tool(ToolArg(name="count", type=ArgType.integer))
+        constraints = {"count": ArgConstraint(min=0, max=100)}
+        errors = validate_arguments({"count": None}, tool, constraints)
+        assert errors == []

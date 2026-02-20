@@ -1,14 +1,18 @@
 """Tests for CLI subcommands (validate, list, backward compat)."""
 
 import argparse
+import importlib
+import logging
+import os
 import textwrap
 from io import StringIO
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 from rich.console import Console
 
-from climax import cmd_validate, cmd_list, main
+import climax
+from climax import cmd_validate, cmd_list, cmd_run, main
 
 
 def _make_args(configs, policy=None):
@@ -309,6 +313,57 @@ class TestCmdListPolicy:
         assert "docker" in output.lower()
         assert "alpine:latest" in output
 
+    def test_list_with_invalid_policy_file(self, valid_yaml, tmp_path):
+        """Invalid policy YAML should return 1 with error message."""
+        policy = tmp_path / "bad_policy.yaml"
+        policy.write_text("executor:\n  type: docker\ntools:\n  hello: {}\n")
+
+        console, buf = _capture_console()
+        rc = cmd_list(_make_args([str(valid_yaml)], policy=str(policy)), console=console)
+        output = buf.getvalue()
+        assert rc == 1
+        assert "Error loading policy" in output
+
+    def test_list_with_nonexistent_policy_file(self, valid_yaml, tmp_path):
+        """Missing policy file should return 1 with error message."""
+        console, buf = _capture_console()
+        rc = cmd_list(
+            _make_args([str(valid_yaml)], policy=str(tmp_path / "nope.yaml")),
+            console=console,
+        )
+        output = buf.getvalue()
+        assert rc == 1
+        assert "Error loading policy" in output
+
+    def test_list_shows_min_constraint(self, tmp_path):
+        """Policy with min constraint should show min= in list output."""
+        config = tmp_path / "tools.yaml"
+        config.write_text(textwrap.dedent("""\
+            name: test-tools
+            command: echo
+            tools:
+              - name: search
+                description: Search
+                args:
+                  - name: count
+                    type: integer
+        """))
+        policy = tmp_path / "policy.yaml"
+        policy.write_text(textwrap.dedent("""\
+            default: disabled
+            tools:
+              search:
+                args:
+                  count:
+                    min: 1
+        """))
+
+        console, buf = _capture_console()
+        rc = cmd_list(_make_args([str(config)], policy=str(policy)), console=console)
+        output = buf.getvalue()
+        assert rc == 0
+        assert "min=" in output
+
     def test_backward_compat_with_policy(self, valid_yaml, minimal_policy_yaml):
         """--policy with backward compat run mode."""
         with patch("climax.cmd_run") as mock_run:
@@ -319,3 +374,106 @@ class TestCmdListPolicy:
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             assert args.policy == str(minimal_policy_yaml)
+
+
+class TestCmdRun:
+    def test_cmd_run_basic(self, valid_yaml):
+        """cmd_run loads configs, creates server, and calls asyncio.run."""
+        args = argparse.Namespace(
+            configs=[str(valid_yaml)],
+            policy=None,
+            log_level="WARNING",
+        )
+        with patch("climax.asyncio.run") as mock_arun:
+            cmd_run(args)
+        mock_arun.assert_called_once()
+
+    def test_cmd_run_with_policy(self, valid_yaml, minimal_policy_yaml):
+        """cmd_run with --policy loads and applies the policy."""
+        args = argparse.Namespace(
+            configs=[str(valid_yaml)],
+            policy=str(minimal_policy_yaml),
+            log_level="WARNING",
+        )
+        with patch("climax.asyncio.run") as mock_arun:
+            with patch("climax.create_server") as mock_create:
+                mock_create.return_value = MagicMock()
+                cmd_run(args)
+        mock_create.assert_called_once()
+        # executor kwarg should be passed (from the policy)
+        assert "executor" in mock_create.call_args.kwargs
+
+    def test_cmd_run_sets_log_level(self, valid_yaml):
+        """cmd_run should set logger level from args."""
+        args = argparse.Namespace(
+            configs=[str(valid_yaml)],
+            policy=None,
+            log_level="DEBUG",
+        )
+        with patch("climax.asyncio.run"):
+            cmd_run(args)
+        assert climax.logger.level == logging.DEBUG
+        # Reset to avoid affecting other tests
+        climax.logger.setLevel(logging.WARNING)
+
+
+class TestMainSubcommands:
+    def test_main_validate_subcommand(self, valid_yaml):
+        """main() with 'validate' dispatches to cmd_validate."""
+        with patch("climax.cmd_validate", return_value=0) as mock_validate:
+            with patch("sys.argv", ["climax", "validate", str(valid_yaml)]):
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+            assert exc_info.value.code == 0
+            mock_validate.assert_called_once()
+
+    def test_main_list_subcommand(self, valid_yaml):
+        """main() with 'list' dispatches to cmd_list."""
+        with patch("climax.cmd_list", return_value=0) as mock_list:
+            with patch("sys.argv", ["climax", "list", str(valid_yaml)]):
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+            assert exc_info.value.code == 0
+            mock_list.assert_called_once()
+
+    def test_main_run_subcommand(self, valid_yaml):
+        """main() with 'run' dispatches to cmd_run."""
+        with patch("climax.cmd_run") as mock_run:
+            with patch("sys.argv", ["climax", "run", str(valid_yaml)]):
+                main()
+            mock_run.assert_called_once()
+
+    def test_main_validate_with_policy(self, valid_yaml, minimal_policy_yaml):
+        """main() passes --policy flag through to cmd_validate."""
+        with patch("climax.cmd_validate", return_value=0) as mock_validate:
+            with patch("sys.argv", [
+                "climax", "validate", "--policy", str(minimal_policy_yaml), str(valid_yaml),
+            ]):
+                with pytest.raises(SystemExit):
+                    main()
+            args = mock_validate.call_args[0][0]
+            assert args.policy == str(minimal_policy_yaml)
+
+
+class TestLogFileEnvVar:
+    def test_log_file_env_creates_handler(self, tmp_path):
+        """Setting CLIMAX_LOG_FILE should add a FileHandler at DEBUG level."""
+        log_file = tmp_path / "climax_test.log"
+
+        with patch.dict(os.environ, {"CLIMAX_LOG_FILE": str(log_file)}):
+            importlib.reload(climax)
+
+        logger = climax.logger
+        file_handlers = [
+            h for h in logger.handlers if isinstance(h, logging.FileHandler)
+        ]
+        assert len(file_handlers) >= 1
+        fh = file_handlers[-1]
+        assert fh.level == logging.DEBUG
+
+        # Clean up: remove the handler and reload without env var
+        logger.removeHandler(fh)
+        fh.close()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("CLIMAX_LOG_FILE", None)
+            importlib.reload(climax)

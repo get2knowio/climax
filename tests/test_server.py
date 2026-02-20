@@ -172,6 +172,45 @@ class TestMCPServer:
         assert "(no output)" in result.content[0].text
 
 
+    async def test_call_tool_long_arg_truncation(self, caplog):
+        """Long positional args should be truncated in log display but not in actual command."""
+        tool_map = {
+            "greet": ResolvedTool(
+                tool=ToolDef(
+                    name="greet",
+                    description="Say hello",
+                    command="hello",
+                    args=[
+                        ToolArg(name="name", type=ArgType.string, required=True, positional=True),
+                    ],
+                ),
+                base_command="echo",
+            ),
+        }
+        server = create_server("test", tool_map)
+
+        long_value = "x" * 200
+
+        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (0, "ok\n", "")
+
+            import logging
+            with caplog.at_level(logging.INFO, logger="climax"):
+                handlers = server.request_handlers
+                request = types.CallToolRequest(
+                    method="tools/call",
+                    params=types.CallToolRequestParams(name="greet", arguments={"name": long_value}),
+                )
+                result = _unwrap(await handlers[types.CallToolRequest](request))
+
+        # Full value should reach run_command (not truncated)
+        cmd = mock_run.call_args[0][0]
+        assert long_value in cmd
+
+        # Log should contain truncation marker
+        assert any("bytes]" in record.message for record in caplog.records)
+
+
 class TestMCPServerPolicy:
     """Tests for policy-aware server behavior."""
 
