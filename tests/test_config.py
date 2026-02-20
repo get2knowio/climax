@@ -56,6 +56,26 @@ class TestLoadConfigs:
         # The second config's tool should overwrite the first
         assert tool_map["hello"].base_command == "printf"
 
+    def test_tool_timeout_preserved(self, tmp_path):
+        import textwrap
+
+        content = textwrap.dedent("""\
+            name: timeout-test
+            command: echo
+            tools:
+              - name: slow_tool
+                description: "A slow tool"
+                timeout: 120
+              - name: fast_tool
+                description: "A fast tool"
+        """)
+        p = tmp_path / "timeout.yaml"
+        p.write_text(content)
+
+        _, tool_map = load_configs([p])
+        assert tool_map["slow_tool"].tool.timeout == 120
+        assert tool_map["fast_tool"].tool.timeout is None
+
     def test_env_and_working_dir_preserved(self, tmp_path):
         import textwrap
 
@@ -81,7 +101,7 @@ class TestLoadConfigs:
 class TestExampleConfigs:
     """Smoke tests for example YAML files shipped with the project."""
 
-    @pytest.mark.parametrize("filename", ["git.yaml", "jj.yaml", "docker.yaml"])
+    @pytest.mark.parametrize("filename", ["git.yaml", "jj.yaml", "docker.yaml", "obsidian.yaml"])
     def test_example_loads(self, filename):
         from pathlib import Path
 

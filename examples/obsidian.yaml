@@ -1,0 +1,983 @@
+# Obsidian CLI — vault management, note reading/writing, search, and knowledge graph
+# Uses inline flag syntax (flag: "key=") for Obsidian's key=value argument format
+
+name: obsidian-tools
+description: "MCP tools for Obsidian vault management — read, write, search, and navigate notes"
+command: /Applications/Obsidian.app/Contents/MacOS/Obsidian
+
+tools:
+  # ---------------------------------------------------------------------------
+  # Vault info
+  # ---------------------------------------------------------------------------
+  - name: obsidian_vault
+    description: "Show info about the current vault — name, path, file count, folder count, or size"
+    command: vault
+    args:
+      - name: info
+        type: string
+        description: "Return only a specific field instead of full info"
+        flag: "info="
+        enum: ["name", "path", "files", "folders", "size"]
+
+  - name: obsidian_vaults
+    description: "List all known Obsidian vaults on this machine"
+    command: vaults
+    args:
+      - name: verbose
+        type: boolean
+        description: "Include vault paths in output"
+        flag: "verbose"
+      - name: total
+        type: boolean
+        description: "Return only the vault count"
+        flag: "total"
+
+  - name: obsidian_version
+    description: "Show the installed Obsidian version"
+    command: version
+
+  # ---------------------------------------------------------------------------
+  # File browsing
+  # ---------------------------------------------------------------------------
+  - name: obsidian_files
+    description: "List files in the vault — useful for discovering notes, filtering by folder or extension"
+    command: files
+    args:
+      - name: folder
+        type: string
+        description: "Filter to files within this folder path"
+        flag: "folder="
+      - name: ext
+        type: string
+        description: "Filter by file extension (e.g. 'md', 'png')"
+        flag: "ext="
+      - name: total
+        type: boolean
+        description: "Return only the file count"
+        flag: "total"
+
+  - name: obsidian_folders
+    description: "List folders in the vault, optionally filtered to a parent folder"
+    command: folders
+    args:
+      - name: folder
+        type: string
+        description: "Filter to subfolders of this parent folder"
+        flag: "folder="
+      - name: total
+        type: boolean
+        description: "Return only the folder count"
+        flag: "total"
+
+  - name: obsidian_file
+    description: "Show metadata for a specific file — use to check if a file exists and get its details"
+    command: file
+    args:
+      - name: file
+        type: string
+        description: "File name (resolved like a wikilink)"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path (e.g. 'folder/note.md')"
+        flag: "path="
+
+  - name: obsidian_folder
+    description: "Show folder info — file count, subfolder count, or size"
+    command: folder
+    args:
+      - name: path
+        type: string
+        description: "Folder path"
+        required: true
+        flag: "path="
+      - name: info
+        type: string
+        description: "Return only a specific field"
+        flag: "info="
+        enum: ["files", "folders", "size"]
+
+  - name: obsidian_recents
+    description: "List recently opened files — useful for finding what the user was working on"
+    command: recents
+    args:
+      - name: total
+        type: boolean
+        description: "Return only the count of recent files"
+        flag: "total"
+
+  # ---------------------------------------------------------------------------
+  # Read and write
+  # ---------------------------------------------------------------------------
+  - name: obsidian_read
+    description: "Read the full contents of a note — use this to understand a note before editing or referencing it"
+    command: read
+    args:
+      - name: file
+        type: string
+        description: "File name (resolved like a wikilink)"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path (e.g. 'folder/note.md')"
+        flag: "path="
+
+  - name: obsidian_create
+    description: "Create a new note in the vault with optional initial content or template"
+    command: create
+    timeout: 120
+    args:
+      - name: name
+        type: string
+        description: "File name for the new note"
+        flag: "name="
+      - name: path
+        type: string
+        description: "Exact file path for the new note"
+        flag: "path="
+      - name: content
+        type: string
+        description: "Initial content for the note (use \\n for newlines)"
+        flag: "content="
+      - name: template
+        type: string
+        description: "Template name to apply"
+        flag: "template="
+      - name: overwrite
+        type: boolean
+        description: "Overwrite if a file with this name already exists"
+        flag: "overwrite"
+      - name: open
+        type: boolean
+        description: "Open the file in Obsidian after creating"
+        flag: "open"
+
+  - name: obsidian_write
+    description: "Replace the full contents of an existing note — read it first with obsidian_read, modify the content, then write it back. This is the way to edit content in the middle of a note."
+    command: create
+    timeout: 120
+    args:
+      - name: name
+        type: string
+        description: "File name of the existing note"
+        flag: "name="
+      - name: path
+        type: string
+        description: "Exact file path of the existing note"
+        flag: "path="
+      - name: content
+        type: string
+        description: "Full replacement content for the note (use \\n for newlines)"
+        required: true
+        flag: "content="
+      - name: overwrite
+        type: boolean
+        description: "Must be true to replace an existing file"
+        flag: "overwrite"
+        default: true
+
+  - name: obsidian_append
+    description: "Append content to the end of an existing note — great for adding to logs, journals, or running lists"
+    command: append
+    timeout: 120
+    args:
+      - name: file
+        type: string
+        description: "File name (resolved like a wikilink)"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path"
+        flag: "path="
+      - name: content
+        type: string
+        description: "Content to append (use \\n for newlines)"
+        required: true
+        flag: "content="
+      - name: inline
+        type: boolean
+        description: "Append without a leading newline"
+        flag: "inline"
+
+  - name: obsidian_prepend
+    description: "Prepend content to the beginning of an existing note — useful for adding headers or top-of-file summaries"
+    command: prepend
+    timeout: 120
+    args:
+      - name: file
+        type: string
+        description: "File name (resolved like a wikilink)"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path"
+        flag: "path="
+      - name: content
+        type: string
+        description: "Content to prepend (use \\n for newlines)"
+        required: true
+        flag: "content="
+      - name: inline
+        type: boolean
+        description: "Prepend without a trailing newline"
+        flag: "inline"
+
+  - name: obsidian_move
+    description: "Move or rename a file to a new location in the vault — Obsidian updates all internal links automatically"
+    command: move
+    args:
+      - name: file
+        type: string
+        description: "File name to move"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path to move"
+        flag: "path="
+      - name: to
+        type: string
+        description: "Destination folder or full path"
+        required: true
+        flag: "to="
+
+  - name: obsidian_rename
+    description: "Rename a file — Obsidian updates all internal links automatically"
+    command: rename
+    args:
+      - name: file
+        type: string
+        description: "Current file name"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Current file path"
+        flag: "path="
+      - name: name
+        type: string
+        description: "New file name"
+        required: true
+        flag: "name="
+
+  - name: obsidian_delete
+    description: "Delete a file from the vault. Moves to trash by default."
+    command: delete
+    args:
+      - name: file
+        type: string
+        description: "File name to delete"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path to delete"
+        flag: "path="
+      - name: permanent
+        type: boolean
+        description: "Skip trash and permanently delete the file"
+        flag: "permanent"
+
+  - name: obsidian_wordcount
+    description: "Count words and characters in a note — useful for checking note length"
+    command: wordcount
+    args:
+      - name: file
+        type: string
+        description: "File name"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path"
+        flag: "path="
+      - name: words
+        type: boolean
+        description: "Return only the word count"
+        flag: "words"
+      - name: characters
+        type: boolean
+        description: "Return only the character count"
+        flag: "characters"
+
+  # ---------------------------------------------------------------------------
+  # Search
+  # ---------------------------------------------------------------------------
+  - name: obsidian_search
+    description: "Full-text search across the vault — returns matching files. Use search_context for line-level matches."
+    command: search
+    args:
+      - name: query
+        type: string
+        description: "Search query text"
+        required: true
+        flag: "query="
+      - name: path
+        type: string
+        description: "Limit search to a specific folder"
+        flag: "path="
+      - name: limit
+        type: integer
+        description: "Maximum number of files to return"
+        flag: "limit="
+      - name: case_sensitive
+        type: boolean
+        description: "Enable case-sensitive matching"
+        flag: "case"
+      - name: total
+        type: boolean
+        description: "Return only the match count"
+        flag: "total"
+      - name: format
+        type: string
+        description: "Output format"
+        flag: "format="
+        enum: ["text", "json"]
+
+  - name: obsidian_search_context
+    description: "Search with line-level context — shows the matching lines, not just file names. Better for understanding where matches occur."
+    command: "search:context"
+    args:
+      - name: query
+        type: string
+        description: "Search query text"
+        required: true
+        flag: "query="
+      - name: path
+        type: string
+        description: "Limit search to a specific folder"
+        flag: "path="
+      - name: limit
+        type: integer
+        description: "Maximum number of files to return"
+        flag: "limit="
+      - name: case_sensitive
+        type: boolean
+        description: "Enable case-sensitive matching"
+        flag: "case"
+      - name: format
+        type: string
+        description: "Output format"
+        flag: "format="
+        enum: ["text", "json"]
+
+  # ---------------------------------------------------------------------------
+  # Knowledge graph — links, backlinks, tags
+  # ---------------------------------------------------------------------------
+  - name: obsidian_links
+    description: "List outgoing links from a note — shows what this note references"
+    command: links
+    args:
+      - name: file
+        type: string
+        description: "File name"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path"
+        flag: "path="
+      - name: total
+        type: boolean
+        description: "Return only the link count"
+        flag: "total"
+
+  - name: obsidian_backlinks
+    description: "List notes that link to a given note — shows what references this note. Essential for understanding a note's context."
+    command: backlinks
+    args:
+      - name: file
+        type: string
+        description: "Target file name"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Target file path"
+        flag: "path="
+      - name: counts
+        type: boolean
+        description: "Include link counts per file"
+        flag: "counts"
+      - name: total
+        type: boolean
+        description: "Return only the backlink count"
+        flag: "total"
+      - name: format
+        type: string
+        description: "Output format"
+        flag: "format="
+        enum: ["json", "tsv", "csv"]
+
+  - name: obsidian_tags
+    description: "List all tags in the vault or tags within a specific file — useful for understanding vault taxonomy"
+    command: tags
+    args:
+      - name: file
+        type: string
+        description: "Show tags only for this file"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Show tags only for this file path"
+        flag: "path="
+      - name: counts
+        type: boolean
+        description: "Include occurrence counts for each tag"
+        flag: "counts"
+      - name: total
+        type: boolean
+        description: "Return only the total tag count"
+        flag: "total"
+      - name: sort
+        type: string
+        description: "Sort order"
+        flag: "sort="
+        enum: ["count"]
+      - name: format
+        type: string
+        description: "Output format"
+        flag: "format="
+        enum: ["json", "tsv", "csv"]
+
+  - name: obsidian_tag
+    description: "Get info about a specific tag — occurrence count and optionally which files use it"
+    command: tag
+    args:
+      - name: name
+        type: string
+        description: "Tag name (without #)"
+        required: true
+        flag: "name="
+      - name: verbose
+        type: boolean
+        description: "Include list of files using this tag"
+        flag: "verbose"
+      - name: total
+        type: boolean
+        description: "Return only the occurrence count"
+        flag: "total"
+
+  - name: obsidian_aliases
+    description: "List note aliases in the vault or for a specific file"
+    command: aliases
+    args:
+      - name: file
+        type: string
+        description: "Show aliases for this file"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Show aliases for this file path"
+        flag: "path="
+      - name: verbose
+        type: boolean
+        description: "Include file paths in output"
+        flag: "verbose"
+      - name: total
+        type: boolean
+        description: "Return only the alias count"
+        flag: "total"
+
+  - name: obsidian_outline
+    description: "Show the heading structure of a note — useful for understanding note organization before reading"
+    command: outline
+    args:
+      - name: file
+        type: string
+        description: "File name"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path"
+        flag: "path="
+      - name: format
+        type: string
+        description: "Output format — 'tree' for visual, 'md' for markdown, 'json' for structured"
+        flag: "format="
+        enum: ["tree", "md", "json"]
+      - name: total
+        type: boolean
+        description: "Return only the heading count"
+        flag: "total"
+
+  - name: obsidian_orphans
+    description: "List notes that nothing links to — useful for finding disconnected or forgotten notes"
+    command: orphans
+    args:
+      - name: total
+        type: boolean
+        description: "Return only the orphan count"
+        flag: "total"
+      - name: all
+        type: boolean
+        description: "Include non-markdown files"
+        flag: "all"
+
+  - name: obsidian_deadends
+    description: "List notes with no outgoing links — may need more connections to the knowledge graph"
+    command: deadends
+    args:
+      - name: total
+        type: boolean
+        description: "Return only the count"
+        flag: "total"
+      - name: all
+        type: boolean
+        description: "Include non-markdown files"
+        flag: "all"
+
+  - name: obsidian_unresolved
+    description: "List wikilinks that point to notes that don't exist yet — useful for finding gaps in the vault"
+    command: unresolved
+    args:
+      - name: counts
+        type: boolean
+        description: "Include link counts"
+        flag: "counts"
+      - name: verbose
+        type: boolean
+        description: "Include source files for each unresolved link"
+        flag: "verbose"
+      - name: total
+        type: boolean
+        description: "Return only the count"
+        flag: "total"
+      - name: format
+        type: string
+        description: "Output format"
+        flag: "format="
+        enum: ["json", "tsv", "csv"]
+
+  # ---------------------------------------------------------------------------
+  # Properties (frontmatter)
+  # ---------------------------------------------------------------------------
+  - name: obsidian_properties
+    description: "List properties (frontmatter keys) across the vault or for a specific file — useful for understanding the vault's metadata schema"
+    command: properties
+    args:
+      - name: file
+        type: string
+        description: "Show properties for this file"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Show properties for this file path"
+        flag: "path="
+      - name: name
+        type: string
+        description: "Get count for a specific property name"
+        flag: "name="
+      - name: counts
+        type: boolean
+        description: "Include occurrence counts"
+        flag: "counts"
+      - name: total
+        type: boolean
+        description: "Return only the total property count"
+        flag: "total"
+      - name: sort
+        type: string
+        description: "Sort order"
+        flag: "sort="
+        enum: ["count"]
+      - name: format
+        type: string
+        description: "Output format"
+        flag: "format="
+        enum: ["yaml", "json", "tsv"]
+
+  - name: obsidian_property_read
+    description: "Read the value of a specific frontmatter property from a note"
+    command: "property:read"
+    args:
+      - name: name
+        type: string
+        description: "Property name to read"
+        required: true
+        flag: "name="
+      - name: file
+        type: string
+        description: "File name"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path"
+        flag: "path="
+
+  - name: obsidian_property_set
+    description: "Set a frontmatter property on a note — creates the property if it doesn't exist"
+    command: "property:set"
+    args:
+      - name: name
+        type: string
+        description: "Property name"
+        required: true
+        flag: "name="
+      - name: value
+        type: string
+        description: "Property value"
+        required: true
+        flag: "value="
+      - name: type
+        type: string
+        description: "Property type hint"
+        flag: "type="
+        enum: ["text", "list", "number", "checkbox", "date", "datetime"]
+      - name: file
+        type: string
+        description: "File name"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path"
+        flag: "path="
+
+  - name: obsidian_property_remove
+    description: "Remove a frontmatter property from a note"
+    command: "property:remove"
+    args:
+      - name: name
+        type: string
+        description: "Property name to remove"
+        required: true
+        flag: "name="
+      - name: file
+        type: string
+        description: "File name"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path"
+        flag: "path="
+
+  # ---------------------------------------------------------------------------
+  # Tasks
+  # ---------------------------------------------------------------------------
+  - name: obsidian_tasks
+    description: "List tasks (checkboxes) across the vault or in a specific file — filter by done/todo status"
+    command: tasks
+    args:
+      - name: file
+        type: string
+        description: "Filter to tasks in this file"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Filter to tasks in this file path"
+        flag: "path="
+      - name: done
+        type: boolean
+        description: "Show only completed tasks"
+        flag: "done"
+      - name: todo
+        type: boolean
+        description: "Show only incomplete tasks"
+        flag: "todo"
+      - name: total
+        type: boolean
+        description: "Return only the task count"
+        flag: "total"
+      - name: verbose
+        type: boolean
+        description: "Group tasks by file with line numbers"
+        flag: "verbose"
+      - name: format
+        type: string
+        description: "Output format"
+        flag: "format="
+        enum: ["json", "tsv", "csv"]
+
+  - name: obsidian_task
+    description: "Toggle or update a specific task's status by file and line number"
+    command: task
+    args:
+      - name: file
+        type: string
+        description: "File containing the task"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact path to file containing the task"
+        flag: "path="
+      - name: line
+        type: integer
+        description: "Line number of the task"
+        flag: "line="
+      - name: toggle
+        type: boolean
+        description: "Toggle the task between done and todo"
+        flag: "toggle"
+      - name: done
+        type: boolean
+        description: "Mark the task as done"
+        flag: "done"
+      - name: todo
+        type: boolean
+        description: "Mark the task as todo"
+        flag: "todo"
+
+  # ---------------------------------------------------------------------------
+  # Daily notes
+  # ---------------------------------------------------------------------------
+  - name: obsidian_daily_read
+    description: "Read today's daily note contents"
+    command: "daily:read"
+
+  - name: obsidian_daily_path
+    description: "Get the file path for today's daily note"
+    command: "daily:path"
+
+  - name: obsidian_daily_append
+    description: "Append content to today's daily note — useful for logging, journaling, or capturing quick thoughts"
+    command: "daily:append"
+    timeout: 120
+    args:
+      - name: content
+        type: string
+        description: "Content to append (use \\n for newlines)"
+        required: true
+        flag: "content="
+      - name: inline
+        type: boolean
+        description: "Append without a leading newline"
+        flag: "inline"
+
+  - name: obsidian_daily_prepend
+    description: "Prepend content to today's daily note"
+    command: "daily:prepend"
+    timeout: 120
+    args:
+      - name: content
+        type: string
+        description: "Content to prepend (use \\n for newlines)"
+        required: true
+        flag: "content="
+      - name: inline
+        type: boolean
+        description: "Prepend without a trailing newline"
+        flag: "inline"
+
+  # ---------------------------------------------------------------------------
+  # Bookmarks
+  # ---------------------------------------------------------------------------
+  - name: obsidian_bookmarks
+    description: "List saved bookmarks — files, searches, or URLs that have been bookmarked"
+    command: bookmarks
+    args:
+      - name: verbose
+        type: boolean
+        description: "Include bookmark types"
+        flag: "verbose"
+      - name: total
+        type: boolean
+        description: "Return only the bookmark count"
+        flag: "total"
+      - name: format
+        type: string
+        description: "Output format"
+        flag: "format="
+        enum: ["json", "tsv", "csv"]
+
+  - name: obsidian_bookmark
+    description: "Add a bookmark — can bookmark a file, folder, search query, or URL"
+    command: bookmark
+    args:
+      - name: file
+        type: string
+        description: "File path to bookmark"
+        flag: "file="
+      - name: folder
+        type: string
+        description: "Folder path to bookmark"
+        flag: "folder="
+      - name: search
+        type: string
+        description: "Search query to bookmark"
+        flag: "search="
+      - name: url
+        type: string
+        description: "URL to bookmark"
+        flag: "url="
+      - name: title
+        type: string
+        description: "Title for the bookmark"
+        flag: "title="
+
+  # ---------------------------------------------------------------------------
+  # Templates
+  # ---------------------------------------------------------------------------
+  - name: obsidian_templates
+    description: "List available templates in the vault"
+    command: templates
+    args:
+      - name: total
+        type: boolean
+        description: "Return only the template count"
+        flag: "total"
+
+  - name: obsidian_template_read
+    description: "Read the contents of a template — optionally resolve template variables"
+    command: "template:read"
+    args:
+      - name: name
+        type: string
+        description: "Template name"
+        required: true
+        flag: "name="
+      - name: resolve
+        type: boolean
+        description: "Resolve template variables (date, title, etc.)"
+        flag: "resolve"
+      - name: title
+        type: string
+        description: "Title to use when resolving template variables"
+        flag: "title="
+
+  # ---------------------------------------------------------------------------
+  # Bases
+  # ---------------------------------------------------------------------------
+  - name: obsidian_bases
+    description: "List all base (database) files in the vault"
+    command: bases
+
+  - name: obsidian_base_query
+    description: "Query a base and return structured results — useful for reading tabular data from Obsidian bases"
+    command: "base:query"
+    args:
+      - name: file
+        type: string
+        description: "Base file name"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Base file path"
+        flag: "path="
+      - name: view
+        type: string
+        description: "View name to query"
+        flag: "view="
+      - name: format
+        type: string
+        description: "Output format"
+        flag: "format="
+        enum: ["json", "csv", "tsv", "md", "paths"]
+        default: "json"
+
+  - name: obsidian_base_views
+    description: "List views (tables, boards, etc.) in a base file"
+    command: "base:views"
+
+  # ---------------------------------------------------------------------------
+  # Plugins
+  # ---------------------------------------------------------------------------
+  - name: obsidian_plugins
+    description: "List installed plugins — useful for understanding what capabilities are available"
+    command: plugins
+    args:
+      - name: filter
+        type: string
+        description: "Filter by plugin type"
+        flag: "filter="
+        enum: ["core", "community"]
+      - name: versions
+        type: boolean
+        description: "Include version numbers"
+        flag: "versions"
+      - name: format
+        type: string
+        description: "Output format"
+        flag: "format="
+        enum: ["json", "tsv", "csv"]
+
+  - name: obsidian_plugins_enabled
+    description: "List only enabled plugins"
+    command: "plugins:enabled"
+    args:
+      - name: filter
+        type: string
+        description: "Filter by plugin type"
+        flag: "filter="
+        enum: ["core", "community"]
+      - name: format
+        type: string
+        description: "Output format"
+        flag: "format="
+        enum: ["json", "tsv", "csv"]
+
+  # ---------------------------------------------------------------------------
+  # Commands
+  # ---------------------------------------------------------------------------
+  - name: obsidian_commands
+    description: "List available Obsidian command IDs — useful for discovering what actions can be triggered"
+    command: commands
+    args:
+      - name: filter
+        type: string
+        description: "Filter commands by ID prefix (e.g. 'editor', 'file')"
+        flag: "filter="
+
+  - name: obsidian_command
+    description: "Execute an Obsidian command by its ID — use obsidian_commands to discover available IDs first"
+    command: command
+    args:
+      - name: id
+        type: string
+        description: "Command ID to execute (e.g. 'editor:toggle-bold')"
+        required: true
+        flag: "id="
+
+  # ---------------------------------------------------------------------------
+  # Open files
+  # ---------------------------------------------------------------------------
+  - name: obsidian_open
+    description: "Open a note in the Obsidian editor"
+    command: open
+    args:
+      - name: file
+        type: string
+        description: "File name (resolved like a wikilink)"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path"
+        flag: "path="
+      - name: newtab
+        type: boolean
+        description: "Open in a new tab"
+        flag: "newtab"
+
+  # ---------------------------------------------------------------------------
+  # Sync status
+  # ---------------------------------------------------------------------------
+  - name: obsidian_sync_status
+    description: "Show the current Obsidian Sync status"
+    command: "sync:status"
+
+  # ---------------------------------------------------------------------------
+  # History
+  # ---------------------------------------------------------------------------
+  - name: obsidian_history
+    description: "List version history for a file — shows available local versions"
+    command: history
+    args:
+      - name: file
+        type: string
+        description: "File name"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path"
+        flag: "path="
+
+  - name: obsidian_history_read
+    description: "Read a specific version from a file's history — useful for recovering previous content"
+    command: "history:read"
+    args:
+      - name: file
+        type: string
+        description: "File name"
+        flag: "file="
+      - name: path
+        type: string
+        description: "Exact file path"
+        flag: "path="
+      - name: version
+        type: integer
+        description: "Version number (default: 1, most recent)"
+        flag: "version="
+        default: 1

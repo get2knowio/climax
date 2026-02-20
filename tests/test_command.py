@@ -116,6 +116,54 @@ class TestBuildCommand:
         cmd = build_command("app", tool, {})
         assert cmd == ["app"]
 
+    def test_inline_flag_with_equals(self):
+        """Flags ending with '=' concatenate flag and value as one token."""
+        tool = ToolDef(
+            name="t",
+            description="test",
+            command="search",
+            args=[ToolArg(name="query", type=ArgType.string, flag="query=")],
+        )
+        cmd = build_command("obsidian", tool, {"query": "hello world"})
+        assert cmd == ["obsidian", "search", "query=hello world"]
+
+    def test_inline_flag_boolean_unaffected(self):
+        """Boolean flags are not affected by the inline flag logic."""
+        tool = ToolDef(
+            name="t",
+            description="test",
+            command="files",
+            args=[ToolArg(name="total", type=ArgType.boolean, flag="total")],
+        )
+        cmd = build_command("obsidian", tool, {"total": True})
+        assert cmd == ["obsidian", "files", "total"]
+
+    def test_inline_flag_mixed_with_regular(self):
+        """Inline flags and regular flags can coexist."""
+        tool = ToolDef(
+            name="t",
+            description="test",
+            command="search",
+            args=[
+                ToolArg(name="query", type=ArgType.string, flag="query="),
+                ToolArg(name="verbose", type=ArgType.boolean, flag="--verbose"),
+                ToolArg(name="limit", type=ArgType.integer, flag="limit="),
+            ],
+        )
+        cmd = build_command("app", tool, {"query": "test", "verbose": True, "limit": 5})
+        assert cmd == ["app", "search", "query=test", "--verbose", "limit=5"]
+
+    def test_inline_flag_default_value(self):
+        """Inline flags work with default values."""
+        tool = ToolDef(
+            name="t",
+            description="test",
+            command="search",
+            args=[ToolArg(name="fmt", type=ArgType.string, flag="format=", default="json")],
+        )
+        cmd = build_command("app", tool, {})
+        assert cmd == ["app", "search", "format=json"]
+
     def test_enum_value_passed_through(self):
         tool = ToolDef(
             name="t",

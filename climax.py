@@ -35,13 +35,26 @@ from mcp.server.lowlevel import Server
 # Rich logging to stderr (stdout is reserved for MCP stdio transport)
 console = Console(stderr=True)
 
+# Default handler: Rich to stderr (visible in MCP client logs)
+_stderr_handler = RichHandler(console=console, rich_tracebacks=True, show_path=False)
+
 logging.basicConfig(
     level=logging.WARNING,
     format="%(message)s",
     datefmt="[%X]",
-    handlers=[RichHandler(console=console, rich_tracebacks=True, show_path=False)],
+    handlers=[_stderr_handler],
 )
 logger = logging.getLogger("climax")
+
+# Optional file log: set CLIMAX_LOG_FILE to enable persistent logging
+_log_file = os.environ.get("CLIMAX_LOG_FILE")
+if _log_file:
+    _file_handler = logging.FileHandler(_log_file)
+    _file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)-8s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    ))
+    _file_handler.setLevel(logging.DEBUG)
+    logger.addHandler(_file_handler)
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +86,7 @@ class ToolDef(BaseModel):
     description: str                 # required — shown to the LLM, avoids leaking command details
     command: str = ""                # subcommand(s) appended to base, e.g. "users list"
     args: list[ToolArg] = Field(default_factory=list)
+    timeout: float | None = None     # per-tool timeout in seconds (overrides default 30s)
 
 
 class CLImaxConfig(BaseModel):
@@ -427,6 +441,9 @@ def build_command(
             # Boolean: include flag if True, omit if False
             if value is True or value == "true":
                 cmd.append(flag)
+        elif flag.endswith("="):
+            # Inline flag: concatenate flag and value as one token (e.g. "file=myfile")
+            cmd.append(f"{flag}{value}")
         else:
             cmd.append(flag)
             cmd.append(str(value))
@@ -450,6 +467,7 @@ async def run_command(
         full_env.update(env)
 
     try:
+        logger.debug("Spawning: %s (cwd=%s)", cmd[0], working_dir or "<inherited>")
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -457,6 +475,7 @@ async def run_command(
             env=full_env,
             cwd=working_dir,
         )
+        logger.debug("Process started (pid=%s)", proc.pid)
         stdout, stderr = await asyncio.wait_for(
             proc.communicate(), timeout=timeout
         )
@@ -466,9 +485,14 @@ async def run_command(
             stderr.decode("utf-8", errors="replace"),
         )
     except asyncio.TimeoutError:
+        logger.warning(
+            "⏱ Timeout after %.1fs (pid=%s, cmd=%s) — killing process",
+            timeout, getattr(proc, 'pid', '?'), cmd[0],
+        )
         proc.kill()  # type: ignore
         return (-1, "", f"Command timed out after {timeout}s")
     except FileNotFoundError:
+        logger.error("Command not found: %s", cmd[0])
         return (-1, "", f"Command not found: {cmd[0]}")
 
 
@@ -527,13 +551,25 @@ def create_server(
 
         cmd_str = " ".join(cmd)
 
-        logger.info("▶ %s", cmd_str)
+        # Build a display-friendly version that truncates large values
+        display_parts = []
+        for token in cmd:
+            if len(token) > 120:
+                display_parts.append(f"{token[:60]}…[{len(token)} bytes]")
+            else:
+                display_parts.append(token)
+        cmd_display = " ".join(display_parts)
+
+        logger.info("▶ %s", cmd_display)
+        logger.debug("▶ full command: %s", cmd_str)
         t0 = time.monotonic()
 
+        tool_timeout = resolved.tool.timeout or 30.0
         returncode, stdout, stderr = await run_command(
             cmd,
             env=resolved.env or None,
             working_dir=resolved.working_dir,
+            timeout=tool_timeout,
         )
 
         elapsed = time.monotonic() - t0
