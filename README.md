@@ -34,7 +34,11 @@ Optionally, a **policy file** controls which tools are enabled, constrains argum
 ### With uv (recommended)
 
 ```bash
-uv pip install climax-mcp
+# Install as a CLI tool (adds `climax` to PATH)
+uv tool install climax-mcp
+
+# Or run directly without installing
+uvx climax-mcp list
 ```
 
 ### With pip
@@ -216,6 +220,8 @@ This is useful for reviewing what a config exposes before connecting it to an LL
 
 ### Connecting to MCP Clients
 
+Configs can be referenced by bare name (bundled configs) or by file path. Run `climax list` to see available bundled configs.
+
 #### Claude Desktop
 
 Add to your `claude_desktop_config.json`:
@@ -223,9 +229,9 @@ Add to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "my-cli": {
+    "git": {
       "command": "climax",
-      "args": ["/path/to/config.yaml"]
+      "args": ["git"]
     }
   }
 }
@@ -238,9 +244,9 @@ Add to your `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "my-cli": {
+    "git": {
       "command": "climax",
-      "args": ["/path/to/config.yaml"]
+      "args": ["git"]
     }
   }
 }
@@ -253,7 +259,7 @@ Add to your `.mcp.json`:
   "mcpServers": {
     "dev-tools": {
       "command": "climax",
-      "args": ["/path/to/jj.yaml", "/path/to/git.yaml", "/path/to/docker.yaml"]
+      "args": ["jj", "git", "docker"]
     }
   }
 }
@@ -266,23 +272,33 @@ Add to your `.mcp.json`:
   "mcpServers": {
     "git-readonly": {
       "command": "climax",
-      "args": ["--policy", "/path/to/readonly.policy.yaml", "/path/to/git.yaml"]
+      "args": ["--policy", "/path/to/readonly.policy.yaml", "git"]
     }
   }
 }
 ```
 
-#### Running from source
-
-If you haven't installed the package, use `python` directly:
+#### With a custom config file
 
 ```json
 {
   "mcpServers": {
     "my-cli": {
-      "command": "python",
-      "args": ["/path/to/climax.py", "/path/to/config.yaml"],
-      "env": {}
+      "command": "climax",
+      "args": ["/path/to/my-config.yaml"]
+    }
+  }
+}
+```
+
+#### Using uvx (no install required)
+
+```json
+{
+  "mcpServers": {
+    "git": {
+      "command": "uvx",
+      "args": ["climax-mcp", "git"]
     }
   }
 }
