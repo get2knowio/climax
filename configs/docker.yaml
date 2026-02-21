@@ -4,6 +4,8 @@
 name: docker-tools
 description: "MCP tools for Docker container and image management"
 command: docker
+category: containers
+tags: ["devops", "deployment", "images"]
 
 tools:
   - name: docker_ps

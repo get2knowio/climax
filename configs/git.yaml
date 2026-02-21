@@ -4,6 +4,8 @@
 name: git-tools
 description: "MCP tools for Git version control operations"
 command: git
+category: vcs
+tags: ["version-control", "commits", "branches"]
 
 tools:
   - name: git_status
