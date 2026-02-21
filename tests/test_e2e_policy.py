@@ -51,7 +51,7 @@ class TestE2EPolicyFiltering:
 
     @pytest.fixture
     def server(self):
-        server_name, tool_map = load_configs([COREUTILS_YAML])
+        server_name, tool_map, _configs = load_configs([COREUTILS_YAML])
         # Allow only coreutils_echo
         policy = PolicyConfig(
             default=DefaultPolicy.disabled,
@@ -82,7 +82,7 @@ class TestE2EPolicyConstraints:
 
     @pytest.fixture
     def server(self):
-        server_name, tool_map = load_configs([COREUTILS_YAML])
+        server_name, tool_map, _configs = load_configs([COREUTILS_YAML])
         policy = PolicyConfig(
             default=DefaultPolicy.disabled,
             tools={
@@ -110,7 +110,7 @@ class TestE2EPolicyDescriptionOverride:
 
     @pytest.fixture
     def server(self):
-        server_name, tool_map = load_configs([COREUTILS_YAML])
+        server_name, tool_map, _configs = load_configs([COREUTILS_YAML])
         policy = PolicyConfig(
             default=DefaultPolicy.disabled,
             tools={
@@ -133,7 +133,7 @@ class TestE2EPolicyDefaultEnabled:
 
     @pytest.fixture
     def server(self):
-        server_name, tool_map = load_configs([COREUTILS_YAML])
+        server_name, tool_map, _configs = load_configs([COREUTILS_YAML])
         policy = PolicyConfig(
             default=DefaultPolicy.enabled,
             tools={},

@@ -55,3 +55,12 @@ Key patterns:
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs pytest across Python 3.11, 3.12, 3.13 using `uv`.
+
+## Active Technologies
+- Python 3.11+ + mcp>=1.7, pyyaml>=6.0, pydantic>=2.0, rich>=13.0 (no new deps — FR-015) (001-tool-discovery-index)
+- N/A — in-memory index built at construction time (001-tool-discovery-index)
+- Python 3.11+ with full type hints + mcp>=1.7, pyyaml>=6.0, pydantic>=2.0, rich>=13.0 (no new deps) (002-mcp-meta-tools)
+- N/A — in-memory ToolIndex built at startup (002-mcp-meta-tools)
+
+## Recent Changes
+- 001-tool-discovery-index: Added Python 3.11+ + mcp>=1.7, pyyaml>=6.0, pydantic>=2.0, rich>=13.0 (no new deps — FR-015)
