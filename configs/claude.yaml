@@ -8,6 +8,7 @@ command: $HOME/.local/bin/claude
 tools:
   - name: claude_ask
     description: "Send a prompt to Claude Code and return the response — runs in non-interactive print mode. Use for one-shot questions, code generation, analysis, or any task you'd type into Claude."
+    timeout: 300
     args:
       - name: directory
         type: string
@@ -26,6 +27,7 @@ tools:
 
   - name: claude_ask_with_model
     description: "Send a prompt to Claude Code using a specific model — use when you need a particular model like 'haiku' for speed or 'opus' for depth"
+    timeout: 300
     args:
       - name: directory
         type: string
@@ -49,6 +51,7 @@ tools:
 
   - name: claude_ask_json
     description: "Send a prompt to Claude Code and get a structured JSON response — useful when you need machine-parseable output"
+    timeout: 300
     args:
       - name: directory
         type: string
@@ -73,6 +76,7 @@ tools:
 
   - name: claude_ask_with_system_prompt
     description: "Send a prompt with a custom system prompt — useful for giving Claude a specific persona or set of instructions"
+    timeout: 300
     args:
       - name: directory
         type: string
