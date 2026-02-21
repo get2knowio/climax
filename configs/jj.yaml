@@ -4,6 +4,8 @@
 name: jj-tools
 description: "MCP tools for Jujutsu version control"
 command: jj
+category: vcs
+tags: ["version-control", "commits", "branches"]
 
 tools:
   - name: jj_status

@@ -100,6 +100,8 @@ class CLImaxConfig(BaseModel):
     command: str                     # base command, e.g. "docker" or "/usr/bin/my-app"
     env: dict[str, str] = Field(default_factory=dict)  # extra env vars for subprocess
     working_dir: str | None = None
+    category: str | None = None
+    tags: list[str] = Field(default_factory=list)
     tools: list[ToolDef]
 
 
@@ -162,6 +164,181 @@ class PolicyConfig(BaseModel):
     executor: ExecutorConfig = Field(default_factory=ExecutorConfig)
     default: DefaultPolicy = DefaultPolicy.disabled
     tools: dict[str, ToolPolicy] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Tool discovery index models
+# ---------------------------------------------------------------------------
+
+
+class ToolIndexEntry(BaseModel):
+    """A single searchable tool entry in the discovery index.
+
+    Represents a tool with all metadata needed for search and display.
+    The ``input_schema`` contains the full JSON Schema for tool arguments,
+    enabling agents to construct valid tool calls without additional lookups.
+    """
+
+    tool_name: str
+    description: str
+    cli_name: str
+    category: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    input_schema: dict[str, Any] = Field(default_factory=dict)
+    _search_text: str = ""
+
+    def model_post_init(self, __context: Any) -> None:
+        """Pre-compute lowercased search text from all searchable fields."""
+        parts = [self.tool_name, self.description, self.cli_name]
+        if self.category:
+            parts.append(self.category)
+        parts.extend(self.tags)
+        object.__setattr__(self, "_search_text", " ".join(parts).lower())
+
+
+class CLISummary(BaseModel):
+    """Summary of a CLI available in the discovery index.
+
+    Provides a high-level overview of a loaded CLI config, including
+    its name, description, tool count, and optional discovery metadata.
+    """
+
+    name: str
+    description: str
+    tool_count: int
+    category: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class ToolIndex:
+    """In-memory searchable index of MCP tools across loaded configs.
+
+    Provides search, summary, and exact-lookup methods for progressive
+    tool discovery. Built once from configs via ``from_configs()`` and
+    then only queried — no mutation methods exist.
+    """
+
+    def __init__(
+        self,
+        entries: list[ToolIndexEntry],
+        resolved: dict[str, ResolvedTool],
+        summaries: list[CLISummary],
+    ) -> None:
+        self._entries = entries
+        self._resolved = resolved
+        self._summaries = summaries
+
+    @classmethod
+    def from_configs(cls, configs: list[CLImaxConfig]) -> "ToolIndex":
+        """Build a searchable index from a list of loaded config objects.
+
+        Args:
+            configs: List of validated CLImaxConfig objects.
+
+        Returns:
+            A fully constructed ToolIndex ready for querying.
+        """
+        entries: list[ToolIndexEntry] = []
+        resolved: dict[str, ResolvedTool] = {}
+        summaries: list[CLISummary] = []
+        entry_by_name: dict[str, ToolIndexEntry] = {}
+
+        for config in configs:
+            summaries.append(CLISummary(
+                name=config.name,
+                description=config.description,
+                tool_count=len(config.tools),
+                category=config.category,
+                tags=list(config.tags),
+            ))
+
+            for tool_def in config.tools:
+                if tool_def.name in entry_by_name:
+                    logger.warning(
+                        "Duplicate tool name [bold]%s[/bold] in index — overwriting",
+                        tool_def.name,
+                        extra={"markup": True},
+                    )
+                    old = entry_by_name[tool_def.name]
+                    entries.remove(old)
+
+                entry = ToolIndexEntry(
+                    tool_name=tool_def.name,
+                    description=tool_def.description,
+                    cli_name=config.name,
+                    category=config.category,
+                    tags=list(config.tags),
+                    input_schema=build_input_schema(tool_def.args),
+                )
+                entries.append(entry)
+                entry_by_name[tool_def.name] = entry
+                resolved[tool_def.name] = ResolvedTool(
+                    tool=tool_def if isinstance(tool_def, dict) else tool_def.model_dump(),
+                    base_command=config.command,
+                    env=dict(config.env),
+                    working_dir=config.working_dir,
+                )
+
+        return cls(entries, resolved, summaries)
+
+    def search(
+        self,
+        query: str | None = None,
+        category: str | None = None,
+        cli: str | None = None,
+        limit: int = 10,
+    ) -> list[ToolIndexEntry]:
+        """Search the index with optional filters.
+
+        Args:
+            query: Case-insensitive substring matched against tool name,
+                description, CLI name, category, and tags.
+            category: Case-insensitive exact match against config category.
+            cli: Case-insensitive exact match against config name.
+            limit: Maximum number of results to return.
+
+        Returns:
+            Matching entries in insertion order, up to ``limit``.
+        """
+        if limit <= 0:
+            return []
+
+        query_lower = query.lower() if query else None
+        category_lower = category.lower() if category else None
+        cli_lower = cli.lower() if cli else None
+
+        results: list[ToolIndexEntry] = []
+        for entry in self._entries:
+            if query_lower and query_lower not in entry._search_text:
+                continue
+            if category_lower:
+                if not entry.category or entry.category.lower() != category_lower:
+                    continue
+            if cli_lower and entry.cli_name.lower() != cli_lower:
+                continue
+            results.append(entry)
+            if len(results) >= limit:
+                break
+        return results
+
+    def summary(self) -> list[CLISummary]:
+        """Get a high-level overview of all loaded CLIs.
+
+        Returns:
+            One CLISummary per loaded config, in config load order.
+        """
+        return list(self._summaries)
+
+    def get(self, tool_name: str) -> ResolvedTool | None:
+        """Retrieve a tool by exact name for execution.
+
+        Args:
+            tool_name: Exact tool name to look up.
+
+        Returns:
+            The ResolvedTool if found, None otherwise.
+        """
+        return self._resolved.get(tool_name)
 
 
 # ---------------------------------------------------------------------------

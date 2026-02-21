@@ -4,6 +4,8 @@
 name: claude-tools
 description: "MCP tools for Claude Code — send prompts and get responses non-interactively"
 command: $HOME/.local/bin/claude
+category: ai
+tags: ["llm", "assistant"]
 
 tools:
   - name: claude_ask

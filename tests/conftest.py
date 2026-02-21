@@ -173,6 +173,70 @@ def invalid_arg_type_yaml(tmp_path):
     return p
 
 
+@pytest.fixture
+def category_tags_yaml(tmp_path):
+    """Config with both category and tags fields."""
+    content = textwrap.dedent("""\
+        name: tagged-cli
+        command: echo
+        category: vcs
+        tags: ["version-control", "commits"]
+        tools:
+          - name: do_thing
+            description: Do a thing
+    """)
+    p = tmp_path / "category_tags.yaml"
+    p.write_text(content)
+    return p
+
+
+@pytest.fixture
+def category_only_yaml(tmp_path):
+    """Config with category but no tags."""
+    content = textwrap.dedent("""\
+        name: cat-only
+        command: echo
+        category: devops
+        tools:
+          - name: deploy
+            description: Deploy something
+    """)
+    p = tmp_path / "category_only.yaml"
+    p.write_text(content)
+    return p
+
+
+@pytest.fixture
+def tags_only_yaml(tmp_path):
+    """Config with tags but no category."""
+    content = textwrap.dedent("""\
+        name: tags-only
+        command: echo
+        tags: ["automation", "ci"]
+        tools:
+          - name: build
+            description: Build something
+    """)
+    p = tmp_path / "tags_only.yaml"
+    p.write_text(content)
+    return p
+
+
+@pytest.fixture
+def no_category_tags_yaml(tmp_path):
+    """Config without category or tags (backward compat)."""
+    content = textwrap.dedent("""\
+        name: plain-cli
+        command: echo
+        tools:
+          - name: plain_tool
+            description: A plain tool
+    """)
+    p = tmp_path / "no_category_tags.yaml"
+    p.write_text(content)
+    return p
+
+
 # ---------------------------------------------------------------------------
 # Policy model fixtures
 # ---------------------------------------------------------------------------

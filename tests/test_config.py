@@ -98,6 +98,40 @@ class TestLoadConfigs:
         assert resolved.working_dir == "/tmp"
 
 
+class TestCategoryTags:
+    """Tests for optional category and tags fields on CLImaxConfig."""
+
+    def test_both_fields(self, category_tags_yaml):
+        config = load_config(category_tags_yaml)
+        assert config.category == "vcs"
+        assert config.tags == ["version-control", "commits"]
+
+    def test_no_fields_backward_compat(self, no_category_tags_yaml):
+        config = load_config(no_category_tags_yaml)
+        assert config.category is None
+        assert config.tags == []
+
+    def test_category_only(self, category_only_yaml):
+        config = load_config(category_only_yaml)
+        assert config.category == "devops"
+        assert config.tags == []
+
+    def test_tags_only(self, tags_only_yaml):
+        config = load_config(tags_only_yaml)
+        assert config.category is None
+        assert config.tags == ["automation", "ci"]
+
+    def test_bundled_configs_have_metadata(self):
+        from pathlib import Path
+
+        bundled = Path(__file__).parent.parent / "configs" / "git.yaml"
+        if not bundled.exists():
+            pytest.skip("git.yaml not found")
+        config = load_config(bundled)
+        assert config.category == "vcs"
+        assert config.tags == ["version-control", "commits", "branches"]
+
+
 class TestBundledConfigs:
     """Smoke tests for bundled YAML configs shipped with the package."""
 
