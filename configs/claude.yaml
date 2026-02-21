@@ -1,5 +1,5 @@
 # Claude Code CLI — non-interactive prompt execution via -p mode
-# Runs `claude -p <prompt>` and returns the output
+# Prompts are piped via stdin to avoid OS arg length limits
 
 name: claude-tools
 description: "MCP tools for Claude Code — send prompts and get responses non-interactively"
@@ -22,7 +22,7 @@ tools:
         type: string
         description: "The prompt to send to Claude"
         required: true
-        positional: true
+        stdin: true
 
   - name: claude_ask_with_model
     description: "Send a prompt to Claude Code using a specific model — use when you need a particular model like 'haiku' for speed or 'opus' for depth"
@@ -45,7 +45,7 @@ tools:
         type: string
         description: "The prompt to send to Claude"
         required: true
-        positional: true
+        stdin: true
 
   - name: claude_ask_json
     description: "Send a prompt to Claude Code and get a structured JSON response — useful when you need machine-parseable output"
@@ -69,7 +69,7 @@ tools:
         type: string
         description: "The prompt to send to Claude"
         required: true
-        positional: true
+        stdin: true
 
   - name: claude_ask_with_system_prompt
     description: "Send a prompt with a custom system prompt — useful for giving Claude a specific persona or set of instructions"
@@ -92,4 +92,4 @@ tools:
         type: string
         description: "The prompt to send to Claude"
         required: true
-        positional: true
+        stdin: true
