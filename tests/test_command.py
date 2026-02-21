@@ -164,6 +164,35 @@ class TestBuildCommand:
         cmd = build_command("app", tool, {})
         assert cmd == ["app", "search", "format=json"]
 
+    def test_cwd_arg_excluded_from_command(self):
+        """Args with cwd=True should not appear in the command list."""
+        tool = ToolDef(
+            name="t",
+            description="test",
+            command="hello",
+            args=[
+                ToolArg(name="directory", type=ArgType.string, cwd=True),
+                ToolArg(name="name", type=ArgType.string, positional=True, required=True),
+            ],
+        )
+        cmd = build_command("echo", tool, {"directory": "/tmp/mydir", "name": "world"})
+        assert cmd == ["echo", "hello", "world"]
+        assert "/tmp/mydir" not in cmd
+
+    def test_cwd_arg_with_flag_excluded(self):
+        """A cwd arg that also has a flag should still be excluded."""
+        tool = ToolDef(
+            name="t",
+            description="test",
+            args=[
+                ToolArg(name="workdir", type=ArgType.string, flag="--workdir", cwd=True),
+                ToolArg(name="verbose", type=ArgType.boolean, flag="--verbose"),
+            ],
+        )
+        cmd = build_command("app", tool, {"workdir": "/home/user", "verbose": True})
+        assert cmd == ["app", "--verbose"]
+        assert "--workdir" not in cmd
+
     def test_enum_value_passed_through(self):
         tool = ToolDef(
             name="t",
@@ -174,3 +203,32 @@ class TestBuildCommand:
         )
         cmd = build_command("app", tool, {"fmt": "json"})
         assert cmd == ["app", "--format", "json"]
+
+    def test_stdin_arg_excluded_from_command(self):
+        """Args with stdin=True should not appear in the command list."""
+        tool = ToolDef(
+            name="t",
+            description="test",
+            command="create",
+            args=[
+                ToolArg(name="path", type=ArgType.string, flag="path="),
+                ToolArg(name="content", type=ArgType.string, stdin=True),
+            ],
+        )
+        cmd = build_command("obsidian", tool, {"path": "notes/test.md", "content": "Hello world"})
+        assert cmd == ["obsidian", "create", "path=notes/test.md"]
+        assert "Hello world" not in cmd
+
+    def test_stdin_positional_arg_excluded(self):
+        """A stdin arg that is also positional should still be excluded."""
+        tool = ToolDef(
+            name="t",
+            description="test",
+            args=[
+                ToolArg(name="data", type=ArgType.string, positional=True, stdin=True),
+                ToolArg(name="verbose", type=ArgType.boolean, flag="--verbose"),
+            ],
+        )
+        cmd = build_command("app", tool, {"data": "some content", "verbose": True})
+        assert cmd == ["app", "--verbose"]
+        assert "some content" not in cmd

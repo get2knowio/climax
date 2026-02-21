@@ -211,6 +211,146 @@ class TestMCPServer:
         assert any("bytes]" in record.message for record in caplog.records)
 
 
+    async def test_cwd_arg_sets_working_dir(self):
+        """A cwd arg should override working_dir passed to run_command."""
+        tool_map = {
+            "greet": ResolvedTool(
+                tool=ToolDef(
+                    name="greet",
+                    description="Say hello",
+                    command="hello",
+                    args=[
+                        ToolArg(name="directory", type=ArgType.string, cwd=True),
+                        ToolArg(name="name", type=ArgType.string, required=True, positional=True),
+                    ],
+                ),
+                base_command="echo",
+                working_dir="/default/dir",
+            ),
+        }
+        server = create_server("test", tool_map)
+
+        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (0, "Hello World\n", "")
+
+            handlers = server.request_handlers
+            request = types.CallToolRequest(
+                method="tools/call",
+                params=types.CallToolRequestParams(
+                    name="greet",
+                    arguments={"name": "World", "directory": "/my/project"},
+                ),
+            )
+            result = _unwrap(await handlers[types.CallToolRequest](request))
+
+        # working_dir should be the cwd arg value, not the static one
+        mock_run.assert_called_once()
+        assert mock_run.call_args.kwargs["working_dir"] == "/my/project"
+        # directory should NOT appear in the command
+        cmd = mock_run.call_args[0][0]
+        assert "/my/project" not in cmd
+
+    async def test_cwd_arg_absent_uses_static_working_dir(self):
+        """When cwd arg is not provided, static working_dir should be used."""
+        tool_map = {
+            "greet": ResolvedTool(
+                tool=ToolDef(
+                    name="greet",
+                    description="Say hello",
+                    args=[
+                        ToolArg(name="directory", type=ArgType.string, cwd=True),
+                    ],
+                ),
+                base_command="echo",
+                working_dir="/default/dir",
+            ),
+        }
+        server = create_server("test", tool_map)
+
+        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (0, "ok\n", "")
+
+            handlers = server.request_handlers
+            request = types.CallToolRequest(
+                method="tools/call",
+                params=types.CallToolRequestParams(name="greet", arguments={}),
+            )
+            result = _unwrap(await handlers[types.CallToolRequest](request))
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args.kwargs["working_dir"] == "/default/dir"
+
+    async def test_stdin_arg_piped_to_run_command(self):
+        """A stdin arg should be passed via stdin_data, not in the command."""
+        tool_map = {
+            "create": ResolvedTool(
+                tool=ToolDef(
+                    name="create",
+                    description="Create a note",
+                    command="create",
+                    args=[
+                        ToolArg(name="path", type=ArgType.string, flag="path="),
+                        ToolArg(name="content", type=ArgType.string, stdin=True),
+                    ],
+                ),
+                base_command="obsidian",
+            ),
+        }
+        server = create_server("test", tool_map)
+
+        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (0, "created\n", "")
+
+            handlers = server.request_handlers
+            request = types.CallToolRequest(
+                method="tools/call",
+                params=types.CallToolRequestParams(
+                    name="create",
+                    arguments={"path": "notes/test.md", "content": "Hello\nWorld"},
+                ),
+            )
+            result = _unwrap(await handlers[types.CallToolRequest](request))
+
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        assert cmd == ["obsidian", "create", "path=notes/test.md"]
+        assert mock_run.call_args.kwargs["stdin_data"] == "Hello\nWorld"
+
+    async def test_stdin_arg_absent_sends_no_stdin(self):
+        """When stdin arg is defined but not provided, stdin_data should be None."""
+        tool_map = {
+            "create": ResolvedTool(
+                tool=ToolDef(
+                    name="create",
+                    description="Create a note",
+                    command="create",
+                    args=[
+                        ToolArg(name="path", type=ArgType.string, flag="path="),
+                        ToolArg(name="content", type=ArgType.string, stdin=True),
+                    ],
+                ),
+                base_command="obsidian",
+            ),
+        }
+        server = create_server("test", tool_map)
+
+        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (0, "created\n", "")
+
+            handlers = server.request_handlers
+            request = types.CallToolRequest(
+                method="tools/call",
+                params=types.CallToolRequestParams(
+                    name="create",
+                    arguments={"path": "notes/test.md"},
+                ),
+            )
+            result = _unwrap(await handlers[types.CallToolRequest](request))
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args.kwargs["stdin_data"] is None
+
+
 class TestMCPServerPolicy:
     """Tests for policy-aware server behavior."""
 

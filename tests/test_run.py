@@ -77,8 +77,31 @@ class TestRunCommand:
         assert rc == -1
         assert "not found" in err.lower()
 
+    async def test_stdin_devnull_by_default(self):
+        """Without stdin_data, stdin should be DEVNULL (not inherited)."""
+        proc = _make_proc(returncode=0, stdout=b"ok\n")
+        with patch("climax.asyncio.create_subprocess_exec", return_value=proc) as mock_exec:
+            await run_command(["cmd"])
+        call_kwargs = mock_exec.call_args
+        assert call_kwargs.kwargs["stdin"] == asyncio.subprocess.DEVNULL
+
+    async def test_stdin_pipe_when_data_provided(self):
+        """With stdin_data, stdin should be PIPE and data should be sent."""
+        proc = _make_proc(returncode=0, stdout=b"ok\n")
+        with patch("climax.asyncio.create_subprocess_exec", return_value=proc) as mock_exec:
+            await run_command(["cmd"], stdin_data="hello world")
+        call_kwargs = mock_exec.call_args
+        assert call_kwargs.kwargs["stdin"] == asyncio.subprocess.PIPE
+        proc.communicate.assert_called_once_with(input=b"hello world")
+
     async def test_integration_echo(self):
         """Integration test with a real command."""
         rc, out, err = await run_command(["echo", "integration test"])
         assert rc == 0
         assert "integration test" in out
+
+    async def test_integration_stdin_cat(self):
+        """Integration test: pipe data via stdin to cat."""
+        rc, out, err = await run_command(["cat"], stdin_data="piped content")
+        assert rc == 0
+        assert "piped content" in out

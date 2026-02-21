@@ -137,8 +137,8 @@ tools:
         flag: "path="
       - name: content
         type: string
-        description: "Initial content for the note (use \\n for newlines)"
-        flag: "content="
+        description: "Initial content for the note"
+        stdin: true
       - name: template
         type: string
         description: "Template name to apply"
@@ -167,9 +167,9 @@ tools:
         flag: "path="
       - name: content
         type: string
-        description: "Full replacement content for the note (use \\n for newlines)"
+        description: "Full replacement content for the note"
         required: true
-        flag: "content="
+        stdin: true
       - name: overwrite
         type: boolean
         description: "Must be true to replace an existing file"
@@ -191,9 +191,9 @@ tools:
         flag: "path="
       - name: content
         type: string
-        description: "Content to append (use \\n for newlines)"
+        description: "Content to append"
         required: true
-        flag: "content="
+        stdin: true
       - name: inline
         type: boolean
         description: "Append without a leading newline"
@@ -214,9 +214,9 @@ tools:
         flag: "path="
       - name: content
         type: string
-        description: "Content to prepend (use \\n for newlines)"
+        description: "Content to prepend"
         required: true
-        flag: "content="
+        stdin: true
       - name: inline
         type: boolean
         description: "Prepend without a trailing newline"
@@ -729,9 +729,9 @@ tools:
     args:
       - name: content
         type: string
-        description: "Content to append (use \\n for newlines)"
+        description: "Content to append"
         required: true
-        flag: "content="
+        stdin: true
       - name: inline
         type: boolean
         description: "Append without a leading newline"
@@ -744,9 +744,9 @@ tools:
     args:
       - name: content
         type: string
-        description: "Content to prepend (use \\n for newlines)"
+        description: "Content to prepend"
         required: true
-        flag: "content="
+        stdin: true
       - name: inline
         type: boolean
         description: "Prepend without a trailing newline"

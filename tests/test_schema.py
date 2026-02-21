@@ -67,6 +67,18 @@ class TestBuildInputSchema:
         schema = build_input_schema(args)
         assert "description" not in schema["properties"]["x"]
 
+    def test_cwd_arg_appears_in_schema(self):
+        """Args with cwd=True should still appear in the JSON schema."""
+        args = [
+            ToolArg(name="directory", type=ArgType.string, description="Working directory", cwd=True),
+            ToolArg(name="name", type=ArgType.string, required=True),
+        ]
+        schema = build_input_schema(args)
+        assert "directory" in schema["properties"]
+        assert schema["properties"]["directory"]["type"] == "string"
+        assert schema["properties"]["directory"]["description"] == "Working directory"
+        assert schema["required"] == ["name"]
+
     def test_combined_properties(self):
         args = [
             ToolArg(

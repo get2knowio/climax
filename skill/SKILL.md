@@ -53,21 +53,22 @@ Follow the schema and rules below precisely.
 ## YAML Schema Reference
 
 ```yaml
-# Required top-level fields
+# --- Top-level (CLImaxConfig) ---
 name: "<cli>-tools"                  # Short identifier, conventionally <cli>-tools
 description: "MCP tools for <X>"     # What this collection of tools does
 command: "<cli>"                     # Base command (must be on PATH or absolute path)
-
-# Optional top-level fields
-env:                                 # Extra environment variables for all commands
+env:                                 # Optional: extra env vars for all commands
   KEY: "value"
-working_dir: "/some/path"            # Working directory for all commands
+working_dir: "/some/path"            # Optional: working directory for all commands
 
-# Tools list — one entry per exposed command
+# --- Tools list (ToolDef) ---
 tools:
   - name: <cli>_<action>             # snake_case, MUST be prefixed with CLI name
     description: "<what and why>"     # Explain WHEN and WHY to use this, not just what
     command: "<subcommand>"           # Appended to base command (can be multi-word)
+    timeout: 30                      # Optional: seconds before killing (default 30)
+
+    # --- Arguments (ToolArg) ---
     args:                            # Optional — omit entirely for no-arg commands
       - name: <arg_name>            # snake_case
         type: string                 # string | integer | number | boolean
@@ -76,7 +77,9 @@ tools:
         flag: "--flag-name"          # CLI flag (omit for positional args)
         positional: false            # true = no flag, placed directly on command line
         default: <value>             # Optional default value
-        enum: [val1, val2]           # Optional allowed values
+        enum: [val1, val2]           # Optional: restrict to specific values
+        cwd: false                   # true = value sets working directory, not passed to CLI
+        stdin: false                 # true = value piped via stdin, not passed to CLI
 ```
 
 ## Rules
@@ -94,24 +97,29 @@ tools:
 8. **Short flags** are fine: `flag: "-n"` works
 9. **Enum** restricts values and helps the LLM pick valid options — use when the CLI has a known set of choices
 
+### Special Arg Modes
+10. **`cwd: true`** — the arg value sets the subprocess working directory instead of being passed on the command line. Use for tools that need to run in a user-specified directory.
+11. **`stdin: true`** — the arg value is piped to the process via stdin instead of passed as a CLI argument. Use for large text content (note bodies, file contents, patches) that would be unwieldy or fragile as command-line args.
+12. **`timeout`** (on `ToolDef`, not `ToolArg`) — per-tool timeout in seconds, overriding the default 30s. Set higher for write operations or commands that talk to slow APIs.
+
 ### Multi-word Subcommands
-10. The `command` field supports multi-word subcommands: `command: "bookmark list"` produces `jj bookmark list`
-11. Nest logically: `jj_bookmark_list` with `command: "bookmark list"`, not a separate `bookmark` tool
+13. The `command` field supports multi-word subcommands: `command: "bookmark list"` produces `jj bookmark list`
+14. Nest logically: `jj_bookmark_list` with `command: "bookmark list"`, not a separate `bookmark` tool
 
 ### Descriptions
-12. Write descriptions for an **LLM audience** — explain when and why to use the tool, not just what it does
-13. Bad: `"Run git log"` — Good: `"Show recent commit history with optional filtering by author or count"`
-14. For args, describe the **effect**: Bad: `"The format flag"` — Good: `"Output format — use 'json' for structured data, 'table' for human reading"`
+15. Write descriptions for an **LLM audience** — explain when and why to use the tool, not just what it does
+16. Bad: `"Run git log"` — Good: `"Show recent commit history with optional filtering by author or count"`
+17. For args, describe the **effect**: Bad: `"The format flag"` — Good: `"Output format — use 'json' for structured data, 'table' for human reading"`
 
 ### Defaults and Required
-15. Mark `required: true` only for args the command genuinely fails without
-16. Use `default` for sensible defaults that save the LLM from always specifying them (e.g. `default: 10` for log limits)
-17. Don't mark everything required — let the LLM call tools with minimal args
+18. Mark `required: true` only for args the command genuinely fails without
+19. Use `default` for sensible defaults that save the LLM from always specifying them (e.g. `default: 10` for log limits)
+20. Don't mark everything required — let the LLM call tools with minimal args
 
 ### Safety
-18. Never expose args that allow arbitrary shell execution (e.g. `--exec`, `--command`)
-19. Flag destructive tools in the description
-20. Prefer read-only tool sets for untrusted environments
+21. Never expose args that allow arbitrary shell execution (e.g. `--exec`, `--command`)
+22. Flag destructive tools in the description
+23. Prefer read-only tool sets for untrusted environments
 
 ## Patterns and Examples
 
@@ -162,6 +170,36 @@ Produces: `docker compose ps`
         flag: "--format"
         enum: ["json", "table", "csv"]
 ```
+
+### Stdin for large content
+```yaml
+  - name: obsidian_create
+    description: "Create a new note in the vault"
+    command: create
+    timeout: 120
+    args:
+      - name: path
+        type: string
+        flag: "path="
+      - name: content
+        type: string
+        description: "Note content"
+        stdin: true
+```
+The `content` value is piped via stdin; only `path=` appears on the command line.
+
+### Working directory arg
+```yaml
+  - name: git_status
+    description: "Show working tree status for a specific repo"
+    command: status
+    args:
+      - name: directory
+        type: string
+        description: "Repository path to run in"
+        cwd: true
+```
+The `directory` value sets the subprocess working directory — it never appears on the command line.
 
 ## Validation Checklist
 

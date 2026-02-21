@@ -79,6 +79,8 @@ class ToolArg(BaseModel):
     default: Any = None
     flag: str | None = None          # e.g. "--format", "-f"
     positional: bool = False         # if True, value is placed positionally (no flag)
+    cwd: bool = False                # if True, value sets subprocess working directory (not passed to command)
+    stdin: bool = False              # if True, value is piped via stdin (not passed as CLI arg)
     enum: list[str] | None = None    # restrict to specific values
 
 
@@ -433,12 +435,14 @@ def build_command(
 
     # First pass: positional args (in definition order)
     for arg_def in tool_def.args:
+        if arg_def.cwd or arg_def.stdin:
+            continue
         if arg_def.positional and arg_def.name in arguments:
             cmd.append(str(arguments[arg_def.name]))
 
     # Second pass: flag args
     for arg_def in tool_def.args:
-        if arg_def.positional:
+        if arg_def.positional or arg_def.cwd or arg_def.stdin:
             continue
 
         value = arguments.get(arg_def.name)
@@ -477,6 +481,7 @@ async def run_command(
     env: dict[str, str] | None = None,
     working_dir: str | None = None,
     timeout: float = 30.0,
+    stdin_data: str | None = None,
 ) -> tuple[int, str, str]:
     """Run a command asynchronously and return (returncode, stdout, stderr)."""
     full_env = os.environ.copy()
@@ -487,6 +492,7 @@ async def run_command(
         logger.debug("Spawning: %s (cwd=%s)", cmd[0], working_dir or "<inherited>")
         proc = await asyncio.create_subprocess_exec(
             *cmd,
+            stdin=asyncio.subprocess.PIPE if stdin_data else asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=full_env,
@@ -494,7 +500,8 @@ async def run_command(
         )
         logger.debug("Process started (pid=%s)", proc.pid)
         stdout, stderr = await asyncio.wait_for(
-            proc.communicate(), timeout=timeout
+            proc.communicate(input=stdin_data.encode("utf-8") if stdin_data else None),
+            timeout=timeout,
         )
         return (
             proc.returncode or 0,
@@ -562,6 +569,20 @@ def create_server(
 
         cmd = build_command(resolved.base_command, resolved.tool, arguments)
 
+        # Extract stdin arg value if present
+        stdin_data = None
+        for arg_def in resolved.tool.args:
+            if arg_def.stdin and arg_def.name in arguments:
+                stdin_data = str(arguments[arg_def.name])
+                break
+
+        # Extract cwd arg value if present
+        working_dir = resolved.working_dir
+        for arg_def in resolved.tool.args:
+            if arg_def.cwd and arg_def.name in arguments:
+                working_dir = arguments[arg_def.name]
+                break
+
         # Prepend docker prefix if executor is docker type
         if executor and executor.type == ExecutorType.docker:
             cmd = build_docker_prefix(executor) + cmd
@@ -585,8 +606,9 @@ def create_server(
         returncode, stdout, stderr = await run_command(
             cmd,
             env=resolved.env or None,
-            working_dir=resolved.working_dir,
+            working_dir=working_dir,
             timeout=tool_timeout,
+            stdin_data=stdin_data,
         )
 
         elapsed = time.monotonic() - t0

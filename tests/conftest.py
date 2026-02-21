@@ -39,6 +39,16 @@ def bool_arg():
 
 
 @pytest.fixture
+def cwd_arg():
+    return ToolArg(name="directory", description="Working directory", type=ArgType.string, cwd=True)
+
+
+@pytest.fixture
+def stdin_arg():
+    return ToolArg(name="content", description="Content to pipe via stdin", type=ArgType.string, stdin=True)
+
+
+@pytest.fixture
 def enum_arg():
     return ToolArg(name="format", description="Output format", type=ArgType.string, flag="--format", enum=["json", "table", "csv"])
 
