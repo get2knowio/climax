@@ -3,7 +3,7 @@
 
 name: claude-tools
 description: "MCP tools for Claude Code — send prompts and get responses non-interactively"
-command: claude
+command: $HOME/.local/bin/claude
 
 tools:
   - name: claude_ask

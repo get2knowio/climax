@@ -427,7 +427,8 @@ def build_command(
     tool subcommand, and provided arguments.
     """
     # Start with base command (split to handle e.g. "python -m myapp")
-    cmd = base_cmd.split()
+    # Expand ~ and $HOME so configs can use portable paths
+    cmd = os.path.expandvars(os.path.expanduser(base_cmd)).split()
 
     # Add subcommand parts
     if tool_def.command:
@@ -658,7 +659,7 @@ def cmd_validate(args, console: Console | None = None) -> int:
             console.print(f"  [green]✓[/green] {config.name} — {len(config.tools)} tool(s)")
 
             # Deep check: warn if command binary is not on PATH
-            binary = config.command.split()[0]
+            binary = os.path.expandvars(os.path.expanduser(config.command)).split()[0]
             if not shutil.which(binary):
                 console.print(f"    [yellow]⚠ '{binary}' not found on PATH[/yellow]")
 
