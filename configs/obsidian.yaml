@@ -42,6 +42,7 @@ tools:
   - name: obsidian_files
     description: "List files in the vault — useful for discovering notes, filtering by folder or extension"
     command: files
+    timeout: 120
     args:
       - name: folder
         type: string
@@ -59,6 +60,7 @@ tools:
   - name: obsidian_folders
     description: "List folders in the vault, optionally filtered to a parent folder"
     command: folders
+    timeout: 120
     args:
       - name: folder
         type: string
@@ -138,7 +140,7 @@ tools:
       - name: content
         type: string
         description: "Initial content for the note"
-        stdin: true
+        flag: "content="
       - name: template
         type: string
         description: "Template name to apply"
@@ -169,7 +171,7 @@ tools:
         type: string
         description: "Full replacement content for the note"
         required: true
-        stdin: true
+        flag: "content="
       - name: overwrite
         type: boolean
         description: "Must be true to replace an existing file"
@@ -193,7 +195,7 @@ tools:
         type: string
         description: "Content to append"
         required: true
-        stdin: true
+        flag: "content="
       - name: inline
         type: boolean
         description: "Append without a leading newline"
@@ -216,7 +218,7 @@ tools:
         type: string
         description: "Content to prepend"
         required: true
-        stdin: true
+        flag: "content="
       - name: inline
         type: boolean
         description: "Prepend without a trailing newline"
@@ -302,6 +304,7 @@ tools:
   - name: obsidian_search
     description: "Full-text search across the vault — returns matching files. Use search_context for line-level matches."
     command: search
+    timeout: 120
     args:
       - name: query
         type: string
@@ -333,6 +336,7 @@ tools:
   - name: obsidian_search_context
     description: "Search with line-level context — shows the matching lines, not just file names. Better for understanding where matches occur."
     command: "search:context"
+    timeout: 120
     args:
       - name: query
         type: string
@@ -380,6 +384,7 @@ tools:
   - name: obsidian_backlinks
     description: "List notes that link to a given note — shows what references this note. Essential for understanding a note's context."
     command: backlinks
+    timeout: 120
     args:
       - name: file
         type: string
@@ -406,6 +411,7 @@ tools:
   - name: obsidian_tags
     description: "List all tags in the vault or tags within a specific file — useful for understanding vault taxonomy"
     command: tags
+    timeout: 120
     args:
       - name: file
         type: string
@@ -498,6 +504,7 @@ tools:
   - name: obsidian_orphans
     description: "List notes that nothing links to — useful for finding disconnected or forgotten notes"
     command: orphans
+    timeout: 120
     args:
       - name: total
         type: boolean
@@ -511,6 +518,7 @@ tools:
   - name: obsidian_deadends
     description: "List notes with no outgoing links — may need more connections to the knowledge graph"
     command: deadends
+    timeout: 120
     args:
       - name: total
         type: boolean
@@ -524,6 +532,7 @@ tools:
   - name: obsidian_unresolved
     description: "List wikilinks that point to notes that don't exist yet — useful for finding gaps in the vault"
     command: unresolved
+    timeout: 120
     args:
       - name: counts
         type: boolean
@@ -651,6 +660,7 @@ tools:
   - name: obsidian_tasks
     description: "List tasks (checkboxes) across the vault or in a specific file — filter by done/todo status"
     command: tasks
+    timeout: 120
     args:
       - name: file
         type: string
@@ -731,7 +741,7 @@ tools:
         type: string
         description: "Content to append"
         required: true
-        stdin: true
+        flag: "content="
       - name: inline
         type: boolean
         description: "Append without a leading newline"
@@ -746,7 +756,7 @@ tools:
         type: string
         description: "Content to prepend"
         required: true
-        stdin: true
+        flag: "content="
       - name: inline
         type: boolean
         description: "Prepend without a trailing newline"
@@ -838,6 +848,7 @@ tools:
   - name: obsidian_base_query
     description: "Query a base and return structured results — useful for reading tabular data from Obsidian bases"
     command: "base:query"
+    timeout: 120
     args:
       - name: file
         type: string
