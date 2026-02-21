@@ -138,7 +138,7 @@ class TestDockerE2E:
                 command: status
         """))
 
-        _, tool_map = load_configs([str(config_file)])
+        _, tool_map, _configs = load_configs([str(config_file)])
         policy = PolicyConfig(
             executor=ExecutorConfig(type=ExecutorType.docker, image="alpine/git:latest"),
             default=DefaultPolicy.disabled,
@@ -174,7 +174,7 @@ class TestDockerE2E:
                 description: List files
         """))
 
-        _, tool_map = load_configs([str(config_file)])
+        _, tool_map, _configs = load_configs([str(config_file)])
         policy = PolicyConfig(
             executor=ExecutorConfig(
                 type=ExecutorType.docker,
@@ -222,7 +222,7 @@ class TestDockerE2E:
                     positional: true
         """))
 
-        _, tool_map = load_configs([str(config_file)])
+        _, tool_map, _configs = load_configs([str(config_file)])
         policy = PolicyConfig(
             executor=ExecutorConfig(type=ExecutorType.docker, image="alpine:latest"),
             default=DefaultPolicy.disabled,
@@ -257,7 +257,7 @@ class TestDockerE2E:
                 command: beta
         """))
 
-        _, tool_map = load_configs([str(config_file)])
+        _, tool_map, _configs = load_configs([str(config_file)])
         policy = PolicyConfig(
             executor=ExecutorConfig(type=ExecutorType.docker, image="myimg:1.0"),
             default=DefaultPolicy.disabled,
@@ -318,7 +318,7 @@ class TestDockerReal:
                     positional: true
         """))
 
-        _, tool_map = load_configs([str(config_file)])
+        _, tool_map, _configs = load_configs([str(config_file)])
         policy = PolicyConfig(
             executor=ExecutorConfig(type=ExecutorType.docker, image="alpine:latest"),
             default=DefaultPolicy.disabled,
@@ -349,7 +349,7 @@ class TestDockerReal:
                     positional: true
         """))
 
-        _, tool_map = load_configs([str(config_file)])
+        _, tool_map, _configs = load_configs([str(config_file)])
         policy = PolicyConfig(
             executor=ExecutorConfig(
                 type=ExecutorType.docker,
@@ -381,7 +381,7 @@ class TestDockerReal:
                     positional: true
         """))
 
-        _, tool_map = load_configs([str(config_file)])
+        _, tool_map, _configs = load_configs([str(config_file)])
         policy = PolicyConfig(
             executor=ExecutorConfig(
                 type=ExecutorType.docker,
@@ -408,7 +408,7 @@ class TestDockerReal:
                 description: Print working directory
         """))
 
-        _, tool_map = load_configs([str(config_file)])
+        _, tool_map, _configs = load_configs([str(config_file)])
         policy = PolicyConfig(
             executor=ExecutorConfig(
                 type=ExecutorType.docker,

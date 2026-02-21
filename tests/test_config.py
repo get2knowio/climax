@@ -39,19 +39,19 @@ class TestLoadConfig:
 
 class TestLoadConfigs:
     def test_single_config(self, valid_yaml):
-        server_name, tool_map = load_configs([valid_yaml])
+        server_name, tool_map, _configs = load_configs([valid_yaml])
         assert server_name == "test-tools"
         assert "hello" in tool_map
         assert tool_map["hello"].base_command == "echo"
 
     def test_multi_config_merge(self, valid_yaml, second_yaml):
-        server_name, tool_map = load_configs([valid_yaml, second_yaml])
+        server_name, tool_map, _configs = load_configs([valid_yaml, second_yaml])
         assert server_name == "climax"  # combined name
         assert "hello" in tool_map
         assert "greet" in tool_map
 
     def test_duplicate_tool_overwrites(self, valid_yaml, duplicate_tool_yaml):
-        _, tool_map = load_configs([valid_yaml, duplicate_tool_yaml])
+        _, tool_map, _configs = load_configs([valid_yaml, duplicate_tool_yaml])
         assert "hello" in tool_map
         # The second config's tool should overwrite the first
         assert tool_map["hello"].base_command == "printf"
@@ -72,7 +72,7 @@ class TestLoadConfigs:
         p = tmp_path / "timeout.yaml"
         p.write_text(content)
 
-        _, tool_map = load_configs([p])
+        _, tool_map, _configs = load_configs([p])
         assert tool_map["slow_tool"].tool.timeout == 120
         assert tool_map["fast_tool"].tool.timeout is None
 
@@ -92,7 +92,7 @@ class TestLoadConfigs:
         p = tmp_path / "env.yaml"
         p.write_text(content)
 
-        _, tool_map = load_configs([p])
+        _, tool_map, _configs = load_configs([p])
         resolved = tool_map["test_tool"]
         assert resolved.env == {"FOO": "bar"}
         assert resolved.working_dir == "/tmp"

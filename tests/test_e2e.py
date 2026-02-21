@@ -44,7 +44,7 @@ class TestEndToEndCoreutils:
 
     @pytest.fixture
     def server(self):
-        server_name, tool_map = load_configs([COREUTILS_YAML])
+        server_name, tool_map, _configs = load_configs([COREUTILS_YAML])
         return create_server(server_name, tool_map)
 
     async def test_list_tools(self, server):
@@ -103,7 +103,7 @@ class TestEndToEndExpr:
         """)
         p = tmp_path / "expr.yaml"
         p.write_text(content)
-        server_name, tool_map = load_configs([p])
+        server_name, tool_map, _configs = load_configs([p])
         return create_server(server_name, tool_map)
 
     async def test_addition(self, server):
@@ -162,7 +162,7 @@ class TestEndToEndMultiConfig:
                     required: true
         """))
 
-        server_name, tool_map = load_configs([echo_cfg, printf_cfg])
+        server_name, tool_map, _configs = load_configs([echo_cfg, printf_cfg])
         server = create_server(server_name, tool_map)
 
         # Call tool from first config

@@ -12,6 +12,7 @@ Usage:
 """
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -380,18 +381,21 @@ def load_config(path: str | Path) -> CLImaxConfig:
     return CLImaxConfig(**data)
 
 
-def load_configs(paths: list[str | Path]) -> tuple[str, dict[str, ResolvedTool]]:
+def load_configs(paths: list[str | Path]) -> tuple[str, dict[str, ResolvedTool], list[CLImaxConfig]]:
     """
     Load one or more YAML configs and merge their tools.
 
-    Returns (server_name, tool_map) where tool_map maps
-    tool name → ResolvedTool with the correct base command.
+    Returns (server_name, tool_map, configs) where tool_map maps
+    tool name → ResolvedTool with the correct base command, and
+    configs is the list of loaded CLImaxConfig objects.
     """
     tool_map: dict[str, ResolvedTool] = {}
     names: list[str] = []
+    configs: list[CLImaxConfig] = []
 
     for path in paths:
         config = load_config(path)
+        configs.append(config)
         names.append(config.name)
         logger.info(
             "Loaded [bold]%s[/bold] from %s (%d tools)",
@@ -422,7 +426,7 @@ def load_configs(paths: list[str | Path]) -> tuple[str, dict[str, ResolvedTool]]
         extra={"markup": True},
     )
 
-    return server_name, tool_map
+    return server_name, tool_map, configs
 
 
 # ---------------------------------------------------------------------------
@@ -540,6 +544,84 @@ def validate_arguments(
                 pass
 
     return errors
+
+
+def validate_tool_args(
+    args: dict[str, Any],
+    tool_def: ToolDef,
+) -> tuple[dict[str, Any], list[str]]:
+    """Validate and coerce climax_call arguments against ToolArg definitions.
+
+    Returns (coerced_args, error_messages). Empty error list = valid.
+    """
+    errors: list[str] = []
+    coerced = dict(args)
+    known_args = {a.name: a for a in tool_def.args}
+
+    # Check required args
+    for arg_def in tool_def.args:
+        if arg_def.required and arg_def.name not in args:
+            errors.append(f"Missing required argument '{arg_def.name}'")
+
+    # Type coercion and enum validation for provided args
+    for arg_name, value in list(coerced.items()):
+        if arg_name not in known_args:
+            # Extra keys silently ignored
+            continue
+
+        arg_def = known_args[arg_name]
+
+        # Type coercion (check bool before int since bool is a subclass of int)
+        if arg_def.type == ArgType.boolean and not isinstance(value, bool):
+            if isinstance(value, str):
+                if value.lower() == "true":
+                    coerced[arg_name] = True
+                elif value.lower() == "false":
+                    coerced[arg_name] = False
+                else:
+                    errors.append(
+                        f"Argument '{arg_name}': cannot convert '{value}' to boolean"
+                    )
+                    continue
+            elif isinstance(value, int):
+                coerced[arg_name] = bool(value)
+            else:
+                errors.append(
+                    f"Argument '{arg_name}': cannot convert '{value}' to boolean"
+                )
+                continue
+        elif arg_def.type == ArgType.integer and not isinstance(value, int):
+            try:
+                coerced[arg_name] = int(value)
+            except (ValueError, TypeError):
+                errors.append(
+                    f"Argument '{arg_name}': cannot convert '{value}' to integer"
+                )
+                continue
+        elif arg_def.type == ArgType.integer and isinstance(value, bool):
+            coerced[arg_name] = int(value)
+        elif arg_def.type == ArgType.number and not isinstance(value, (int, float)):
+            try:
+                coerced[arg_name] = float(value)
+            except (ValueError, TypeError):
+                errors.append(
+                    f"Argument '{arg_name}': cannot convert '{value}' to number"
+                )
+                continue
+        elif arg_def.type == ArgType.number and isinstance(value, bool):
+            coerced[arg_name] = float(value)
+        elif arg_def.type == ArgType.string and not isinstance(value, str):
+            coerced[arg_name] = str(value)
+
+        # Enum validation
+        if arg_def.enum and coerced.get(arg_name) is not None:
+            str_value = str(coerced[arg_name])
+            if str_value not in arg_def.enum:
+                errors.append(
+                    f"Argument '{arg_name}' must be one of: {', '.join(arg_def.enum)}"
+                )
+
+    return coerced, errors
 
 
 def build_docker_prefix(executor: ExecutorConfig) -> list[str]:
@@ -719,14 +801,68 @@ def create_server(
     server_name: str,
     tool_map: dict[str, ResolvedTool],
     executor: ExecutorConfig | None = None,
+    index: "ToolIndex | None" = None,
+    classic: bool = False,
 ) -> Server:
     """Create and configure the MCP server from resolved tools."""
 
     server = Server(server_name)
 
+    # Meta-tool definitions for default (progressive discovery) mode
+    _META_TOOLS = [
+        types.Tool(
+            name="climax_search",
+            description="Search for available CLI tools by keyword, category, or CLI name. Call with no filters to get a summary of all available CLIs.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search keyword (matched against tool name, description, CLI name, category, tags)",
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "Filter by CLI category (exact match, case-insensitive)",
+                    },
+                    "cli": {
+                        "type": "string",
+                        "description": "Filter by CLI name (exact match, case-insensitive)",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 10)",
+                        "default": 10,
+                    },
+                },
+            },
+        ),
+        types.Tool(
+            name="climax_call",
+            description="Execute a CLI tool by name. Use climax_search first to discover available tools and their argument schemas.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "tool_name": {
+                        "type": "string",
+                        "description": "The exact name of the tool to execute (as returned by climax_search)",
+                    },
+                    "args": {
+                        "type": "object",
+                        "description": "Arguments to pass to the tool (see tool's input_schema from climax_search)",
+                    },
+                },
+                "required": ["tool_name"],
+            },
+        ),
+    ]
+
     @server.list_tools()
     async def list_tools() -> list[types.Tool]:
-        """Return all tools from all loaded configs."""
+        """Return tools based on mode: meta-tools (default) or all individual tools (classic)."""
+        if not classic and index is not None:
+            return list(_META_TOOLS)
+
+        # Classic mode: return all individual tools
         result = []
         for name, resolved in tool_map.items():
             td = resolved.tool
@@ -740,22 +876,21 @@ def create_server(
             )
         return result
 
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any] | None) -> list[types.TextContent]:
-        """Execute the CLI command for the given tool."""
-        resolved = tool_map.get(name)
-        if not resolved:
-            logger.warning("Unknown tool called: %s", name)
-            return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
+    async def _execute_tool(
+        resolved: ResolvedTool,
+        arguments: dict[str, Any],
+        executor_cfg: ExecutorConfig | None = executor,
+    ) -> list[types.TextContent]:
+        """Execute a resolved tool with validated arguments.
 
-        arguments = arguments or {}
-
+        Shared by both classic call_tool and climax_call meta-tool.
+        """
         # Validate arguments against policy constraints
         if resolved.arg_constraints:
             errors = validate_arguments(arguments, resolved.tool, resolved.arg_constraints)
             if errors:
                 error_text = "Policy validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
-                logger.warning("Policy rejected %s: %s", name, "; ".join(errors))
+                logger.warning("Policy rejected %s: %s", resolved.tool.name, "; ".join(errors))
                 return [types.TextContent(type="text", text=error_text)]
 
         cmd = build_command(resolved.base_command, resolved.tool, arguments)
@@ -775,8 +910,8 @@ def create_server(
                 break
 
         # Prepend docker prefix if executor is docker type
-        if executor and executor.type == ExecutorType.docker:
-            cmd = build_docker_prefix(executor) + cmd
+        if executor_cfg and executor_cfg.type == ExecutorType.docker:
+            cmd = build_docker_prefix(executor_cfg) + cmd
 
         cmd_str = " ".join(cmd)
 
@@ -807,12 +942,12 @@ def create_server(
         if returncode == 0:
             logger.info(
                 "✓ %s completed in %.1fs (%d bytes)",
-                name, elapsed, len(stdout),
+                resolved.tool.name, elapsed, len(stdout),
             )
         else:
             logger.warning(
                 "✗ %s failed (exit %d) in %.1fs",
-                name, returncode, elapsed,
+                resolved.tool.name, returncode, elapsed,
             )
             if stderr.strip():
                 logger.debug("stderr: %s", stderr.strip()[:200])
@@ -829,6 +964,78 @@ def create_server(
         text = "\n\n".join(parts) if parts else "(no output)"
 
         return [types.TextContent(type="text", text=text)]
+
+    async def _handle_climax_search(arguments: dict[str, Any]) -> list[types.TextContent]:
+        """Handle climax_search meta-tool calls."""
+        query = arguments.get("query")
+        category = arguments.get("category")
+        cli = arguments.get("cli")
+        try:
+            limit = int(arguments.get("limit", 10))
+        except (ValueError, TypeError):
+            limit = 10
+
+        # Summary mode when all filter params are absent
+        if query is None and category is None and cli is None:
+            summaries = index.summary()[:limit]
+            response = {
+                "mode": "summary",
+                "summary": [s.model_dump() for s in summaries],
+            }
+        else:
+            # Filter results to only include policy-allowed tools
+            all_matches = index.search(query=query, category=category, cli=cli, limit=sys.maxsize)
+            filtered = [e for e in all_matches if e.tool_name in tool_map][:limit]
+            response = {
+                "mode": "search",
+                "results": [e.model_dump() for e in filtered],
+            }
+
+        return [types.TextContent(type="text", text=json.dumps(response))]
+
+    async def _handle_climax_call(arguments: dict[str, Any]) -> list[types.TextContent]:
+        """Handle climax_call meta-tool calls."""
+        tool_name = arguments.get("tool_name")
+        if tool_name is None:
+            return [types.TextContent(type="text", text="Missing required argument 'tool_name'")]
+
+        call_args = arguments.get("args") or {}
+
+        # Resolve from tool_map (policy-filtered) to enforce policy constraints
+        resolved = tool_map.get(tool_name)
+        if not resolved:
+            return [types.TextContent(type="text", text=f"Unknown tool: {tool_name}")]
+
+        # Validate and coerce arguments
+        coerced_args, errors = validate_tool_args(call_args, resolved.tool)
+        if errors:
+            error_text = "Argument validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
+            return [types.TextContent(type="text", text=error_text)]
+
+        return await _execute_tool(resolved, coerced_args)
+
+    @server.call_tool()
+    async def call_tool(name: str, arguments: dict[str, Any] | None) -> list[types.TextContent]:
+        """Execute the CLI command for the given tool."""
+        arguments = arguments or {}
+
+        # Default mode: dispatch to meta-tool handlers
+        if not classic and index is not None:
+            if name == "climax_search":
+                return await _handle_climax_search(arguments)
+            elif name == "climax_call":
+                return await _handle_climax_call(arguments)
+            else:
+                logger.warning("Unknown tool called: %s", name)
+                return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
+
+        # Classic mode: dispatch to individual tools
+        resolved = tool_map.get(name)
+        if not resolved:
+            logger.warning("Unknown tool called: %s", name)
+            return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
+
+        return await _execute_tool(resolved, arguments)
 
     return server
 
@@ -904,7 +1111,7 @@ def cmd_list(args, console: Console | None = None) -> int:
         return 0
 
     try:
-        server_name, tool_map = load_configs(args.configs)
+        server_name, tool_map, _configs = load_configs(args.configs)
     except Exception as e:
         console.print(f"[red]Error loading configs:[/red] {e}")
         return 1
@@ -1006,7 +1213,7 @@ def cmd_run(args) -> None:
     """Start the MCP server (stdio transport)."""
     logger.setLevel(getattr(logging, args.log_level))
 
-    server_name, tool_map = load_configs(args.configs)
+    server_name, tool_map, configs = load_configs(args.configs)
 
     executor = None
     policy_path = getattr(args, "policy", None)
@@ -1015,7 +1222,9 @@ def cmd_run(args) -> None:
         tool_map = apply_policy(tool_map, policy)
         executor = policy.executor
 
-    server = create_server(server_name, tool_map, executor=executor)
+    is_classic = getattr(args, "classic", False)
+    index = ToolIndex.from_configs(configs)
+    server = create_server(server_name, tool_map, executor=executor, index=index, classic=is_classic)
 
     async def run():
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
@@ -1045,6 +1254,7 @@ def _build_run_parser(parser=None):
         parser = argparse.ArgumentParser()
     parser.add_argument("configs", nargs="+", metavar="CONFIG")
     _add_policy_arg(parser)
+    parser.add_argument("--classic", action="store_true", default=False, help="Classic mode: register all tools directly")
     parser.add_argument("--transport", choices=["stdio"], default="stdio", help="MCP transport (default: stdio)")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="WARNING", help="Logging level")
     return parser
