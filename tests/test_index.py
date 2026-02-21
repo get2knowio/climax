@@ -6,12 +6,10 @@ import pytest
 
 from climax import (
     CLImaxConfig,
-    CLISummary,
     ToolArg,
     ArgType,
     ToolDef,
     ToolIndex,
-    ToolIndexEntry,
     load_config,
 )
 
@@ -223,6 +221,18 @@ class TestSearch:
         results = index.search(query="[a-z]")
         assert results == []
 
+    def test_very_long_query_no_match(self, index):
+        """Edge case: very long query strings still work correctly."""
+        long_query = "x" * 10000
+        results = index.search(query=long_query)
+        assert results == []
+
+    def test_long_query_substring_matches(self, index):
+        """Edge case: long query containing a valid substring still matches."""
+        results = index.search(query="Show the working tree status")
+        assert len(results) == 1
+        assert results[0].tool_name == "git_status"
+
     def test_insertion_order(self, index):
         results = index.search(limit=6)
         expected_order = [
@@ -259,6 +269,16 @@ class TestSearch:
         # plain_config has category=None, should not match category filter
         results = index.search(category="containers")
         assert all(r.cli_name == "docker-tools" for r in results)
+
+    def test_category_rejects_substring(self, index):
+        """FR-007: category filter uses exact match, not substring."""
+        results = index.search(category="vc")  # substring of "vcs"
+        assert results == []
+
+    def test_cli_rejects_substring(self, index):
+        """FR-007: cli filter uses exact match, not substring."""
+        results = index.search(cli="docker")  # substring of "docker-tools"
+        assert results == []
 
 
 class TestSearchDuplicates:

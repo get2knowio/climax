@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
@@ -179,6 +179,8 @@ class ToolIndexEntry(BaseModel):
     enabling agents to construct valid tool calls without additional lookups.
     """
 
+    model_config = ConfigDict(frozen=True)
+
     tool_name: str
     description: str
     cli_name: str
@@ -208,6 +210,17 @@ class CLISummary(BaseModel):
     tool_count: int
     category: str | None = None
     tags: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def from_config(cls, config: "CLImaxConfig") -> "CLISummary":
+        """Build a summary from a loaded config object."""
+        return cls(
+            name=config.name,
+            description=config.description,
+            tool_count=len(config.tools),
+            category=config.category,
+            tags=list(config.tags),
+        )
 
 
 class ToolIndex:
@@ -241,26 +254,17 @@ class ToolIndex:
         entries: list[ToolIndexEntry] = []
         resolved: dict[str, ResolvedTool] = {}
         summaries: list[CLISummary] = []
-        entry_by_name: dict[str, ToolIndexEntry] = {}
 
         for config in configs:
-            summaries.append(CLISummary(
-                name=config.name,
-                description=config.description,
-                tool_count=len(config.tools),
-                category=config.category,
-                tags=list(config.tags),
-            ))
+            summaries.append(CLISummary.from_config(config))
 
             for tool_def in config.tools:
-                if tool_def.name in entry_by_name:
+                if tool_def.name in resolved:
                     logger.warning(
                         "Duplicate tool name [bold]%s[/bold] in index — overwriting",
                         tool_def.name,
                         extra={"markup": True},
                     )
-                    old = entry_by_name[tool_def.name]
-                    entries.remove(old)
 
                 entry = ToolIndexEntry(
                     tool_name=tool_def.name,
@@ -271,15 +275,24 @@ class ToolIndex:
                     input_schema=build_input_schema(tool_def.args),
                 )
                 entries.append(entry)
-                entry_by_name[tool_def.name] = entry
                 resolved[tool_def.name] = ResolvedTool(
-                    tool=tool_def if isinstance(tool_def, dict) else tool_def.model_dump(),
+                    # model_dump() ensures compatibility when module is reloaded (e.g. in tests)
+                    tool=tool_def.model_dump(),
                     base_command=config.command,
                     env=dict(config.env),
                     working_dir=config.working_dir,
                 )
 
-        return cls(entries, resolved, summaries)
+        # Deduplicate entries: keep last occurrence of each tool name
+        seen: set[str] = set()
+        deduped: list[ToolIndexEntry] = []
+        for entry in reversed(entries):
+            if entry.tool_name not in seen:
+                seen.add(entry.tool_name)
+                deduped.append(entry)
+        deduped.reverse()
+
+        return cls(deduped, resolved, summaries)
 
     def search(
         self,
