@@ -1,0 +1,95 @@
+# Claude Code CLI — non-interactive prompt execution via -p mode
+# Runs `claude -p <prompt>` and returns the output
+
+name: claude-tools
+description: "MCP tools for Claude Code — send prompts and get responses non-interactively"
+command: claude
+
+tools:
+  - name: claude_ask
+    description: "Send a prompt to Claude Code and return the response — runs in non-interactive print mode. Use for one-shot questions, code generation, analysis, or any task you'd type into Claude."
+    args:
+      - name: directory
+        type: string
+        description: "Working directory — determines which project context (CLAUDE.md, git repo) Claude sees"
+        cwd: true
+      - name: print
+        type: boolean
+        description: "Run in non-interactive mode (print response and exit)"
+        flag: "-p"
+        default: true
+      - name: prompt
+        type: string
+        description: "The prompt to send to Claude"
+        required: true
+        positional: true
+
+  - name: claude_ask_with_model
+    description: "Send a prompt to Claude Code using a specific model — use when you need a particular model like 'haiku' for speed or 'opus' for depth"
+    args:
+      - name: directory
+        type: string
+        description: "Working directory — determines which project context (CLAUDE.md, git repo) Claude sees"
+        cwd: true
+      - name: print
+        type: boolean
+        description: "Run in non-interactive mode (print response and exit)"
+        flag: "-p"
+        default: true
+      - name: model
+        type: string
+        description: "Model to use — an alias like 'sonnet', 'opus', 'haiku' or a full model ID"
+        required: true
+        flag: "--model"
+      - name: prompt
+        type: string
+        description: "The prompt to send to Claude"
+        required: true
+        positional: true
+
+  - name: claude_ask_json
+    description: "Send a prompt to Claude Code and get a structured JSON response — useful when you need machine-parseable output"
+    args:
+      - name: directory
+        type: string
+        description: "Working directory — determines which project context (CLAUDE.md, git repo) Claude sees"
+        cwd: true
+      - name: print
+        type: boolean
+        description: "Run in non-interactive mode (print response and exit)"
+        flag: "-p"
+        default: true
+      - name: output_format
+        type: string
+        description: "Output format"
+        flag: "--output-format"
+        default: "json"
+        enum: ["json", "stream-json"]
+      - name: prompt
+        type: string
+        description: "The prompt to send to Claude"
+        required: true
+        positional: true
+
+  - name: claude_ask_with_system_prompt
+    description: "Send a prompt with a custom system prompt — useful for giving Claude a specific persona or set of instructions"
+    args:
+      - name: directory
+        type: string
+        description: "Working directory — determines which project context (CLAUDE.md, git repo) Claude sees"
+        cwd: true
+      - name: print
+        type: boolean
+        description: "Run in non-interactive mode (print response and exit)"
+        flag: "-p"
+        default: true
+      - name: system_prompt
+        type: string
+        description: "Custom system prompt to set Claude's behavior and context"
+        required: true
+        flag: "--system-prompt"
+      - name: prompt
+        type: string
+        description: "The prompt to send to Claude"
+        required: true
+        positional: true
