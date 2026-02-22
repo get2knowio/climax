@@ -1004,7 +1004,11 @@ def create_server(
         # Resolve from tool_map (policy-filtered) to enforce policy constraints
         resolved = tool_map.get(tool_name)
         if not resolved:
-            return [types.TextContent(type="text", text=f"Unknown tool: {tool_name}")]
+            available = sorted(tool_map.keys())
+            return [types.TextContent(
+                type="text",
+                text=f"Unknown tool: {tool_name}. Available tools: {', '.join(available)}",
+            )]
 
         # Validate and coerce arguments
         coerced_args, errors = validate_tool_args(call_args, resolved.tool)
@@ -1027,13 +1031,20 @@ def create_server(
                 return await _handle_climax_call(arguments)
             else:
                 logger.warning("Unknown tool called: %s", name)
-                return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
+                return [types.TextContent(
+                    type="text",
+                    text=f"Unknown tool: {name}. Available tools: climax_search, climax_call",
+                )]
 
         # Classic mode: dispatch to individual tools
         resolved = tool_map.get(name)
         if not resolved:
             logger.warning("Unknown tool called: %s", name)
-            return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
+            available = sorted(tool_map.keys())
+            return [types.TextContent(
+                type="text",
+                text=f"Unknown tool: {name}. Available tools: {', '.join(available)}",
+            )]
 
         return await _execute_tool(resolved, arguments)
 
