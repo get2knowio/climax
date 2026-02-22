@@ -27,6 +27,42 @@ You need three things:
 
 Optionally, a **policy file** controls which tools are enabled, constrains argument values, overrides descriptions, and can route execution through Docker containers.
 
+## Progressive Discovery (Default Mode)
+
+By default, CLImax uses **progressive discovery** — the MCP `tools/list` response contains only two meta-tools:
+
+- **`climax_search`** — Find tools by keyword, category, CLI name, or browse all available CLIs
+- **`climax_call`** — Execute a discovered tool by name
+
+This keeps your LLM's context focused. Instead of seeing hundreds of tools at once, the agent discovers what's available on-demand:
+
+```
+Agent: "Search for git commit tools"
+  ↓
+climax_search(query="commit")
+  → Returns tools with names, descriptions, arguments, and types
+  ↓
+Agent: "Call git_commit with message='fix bug'"
+  ↓
+climax_call(tool_name="git_commit", args={message: "fix bug"})
+  → Executes the command and returns stdout/stderr/exit code
+```
+
+This is ideal for:
+- Large tool sets (hundreds of subcommands across multiple CLIs)
+- LLMs with tight context windows
+- Dynamic tool discovery workflows
+
+### Classic Mode (Backward Compatibility)
+
+If you prefer all tools registered directly in the MCP response (as in versions prior to `002-mcp-meta-tools`), use the `--classic` flag:
+
+```bash
+climax --classic git docker
+```
+
+In classic mode, `tools/list` returns all individual tools directly. Meta-tools (`climax_search` and `climax_call`) are not registered.
+
 ## Installation
 
 **Requirements:** Python 3.11+
@@ -58,11 +94,14 @@ uv sync       # or: pip install -e .
 ## Quick Start
 
 ```bash
-# Run with a bundled config by name — starts an MCP server over stdio
+# Run with a bundled config by name — starts an MCP server with progressive discovery (default)
 climax git
 
 # Combine multiple CLIs into one server
 climax jj git docker
+
+# Use classic mode — register all tools directly instead of meta-tools
+climax --classic git
 
 # Apply a policy to restrict tools and arguments
 climax --policy my-project.policy.yaml git
@@ -131,10 +170,13 @@ CLImax provides three subcommands for working with configs:
 
 Starts the MCP stdio server. This is what MCP clients connect to. Configs can be referenced by bare name (resolves to bundled configs) or by file path.
 
+By default, the server uses **progressive discovery mode** — `climax_search` and `climax_call` meta-tools are registered instead of individual CLI tools.
+
 ```bash
 climax run git
 climax run git docker --log-level INFO
 climax run --policy readonly.policy.yaml git
+climax run --classic git                    # use classic mode instead
 ```
 
 For backward compatibility, you can omit `run`:
@@ -142,12 +184,14 @@ For backward compatibility, you can omit `run`:
 ```bash
 climax git                        # equivalent to: climax run git
 climax --policy policy.yaml git
+climax --classic git              # use classic mode
 ```
 
 **Options:**
 
 | Flag | Values | Default | Description |
 |------|--------|---------|-------------|
+| `--classic` | *(flag)* | disabled | Register all individual tools directly instead of using meta-tools (progressive discovery mode is default) |
 | `--policy` | path to YAML | *(none)* | Policy file to restrict tools and constrain arguments |
 | `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `WARNING` | Log verbosity (logs go to stderr) |
 | `--transport` | `stdio` | `stdio` | MCP transport protocol |
@@ -222,9 +266,11 @@ This is useful for reviewing what a config exposes before connecting it to an LL
 
 Configs can be referenced by bare name (bundled configs) or by file path. Run `climax list` to see available bundled configs.
 
+By default, MCP clients will see `climax_search` and `climax_call` in the tools list. The actual CLI tools are discovered on-demand through `climax_search`. To use the classic mode where all tools are directly registered, add the `--classic` flag to the arguments.
+
 #### Claude Desktop
 
-Add to your `claude_desktop_config.json`:
+Add to your `claude_desktop_config.json` (uses progressive discovery by default):
 
 ```json
 {
@@ -232,6 +278,19 @@ Add to your `claude_desktop_config.json`:
     "git": {
       "command": "climax",
       "args": ["git"]
+    }
+  }
+}
+```
+
+Or use classic mode if you prefer all tools directly registered:
+
+```json
+{
+  "mcpServers": {
+    "git": {
+      "command": "climax",
+      "args": ["--classic", "git"]
     }
   }
 }
@@ -239,7 +298,7 @@ Add to your `claude_desktop_config.json`:
 
 #### Claude Code
 
-Add to your `.mcp.json`:
+Add to your `.mcp.json` (uses progressive discovery by default):
 
 ```json
 {
@@ -252,7 +311,22 @@ Add to your `.mcp.json`:
 }
 ```
 
+Or use classic mode if you prefer all tools directly registered:
+
+```json
+{
+  "mcpServers": {
+    "git": {
+      "command": "climax",
+      "args": ["--classic", "git"]
+    }
+  }
+}
+```
+
 #### Multiple CLIs in one server
+
+Combine multiple configs into a single server (progressive discovery by default):
 
 ```json
 {
@@ -260,6 +334,21 @@ Add to your `.mcp.json`:
     "dev-tools": {
       "command": "climax",
       "args": ["jj", "git", "docker"]
+    }
+  }
+}
+```
+
+All tools from all CLIs are searchable via `climax_search`, and callable via `climax_call`.
+
+Or use classic mode:
+
+```json
+{
+  "mcpServers": {
+    "dev-tools": {
+      "command": "climax",
+      "args": ["--classic", "jj", "git", "docker"]
     }
   }
 }
@@ -303,6 +392,129 @@ Add to your `.mcp.json`:
   }
 }
 ```
+
+## Meta-Tools Reference
+
+CLImax exposes two meta-tools by default that enable progressive discovery:
+
+### `climax_search` — Discover tools
+
+Search for tools by keyword, category, or CLI name. Returns matching tools with their full argument schemas.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | string | *(optional)* | Search by tool name or description (substring match) |
+| `category` | string | *(optional)* | Filter by tool category (e.g., "vcs", "container") |
+| `cli` | string | *(optional)* | Filter by CLI name (e.g., "git-tools", "docker-tools") |
+| `limit` | integer | 10 | Maximum number of results to return |
+
+**Behavior:**
+
+- If `query`, `category`, or `cli` are provided, returns matching tools with full details (name, description, CLI, category, tags, argument schema)
+- If none of these are provided (only `limit` or no parameters), returns a summary of all loaded CLIs with tool counts, categories, and tags
+
+**Example request:**
+
+```json
+{
+  "tool": "climax_search",
+  "input": {
+    "query": "commit",
+    "limit": 5
+  }
+}
+```
+
+**Example response (search mode):**
+
+```json
+{
+  "mode": "search",
+  "results": [
+    {
+      "tool_name": "git_commit",
+      "description": "Create a new commit",
+      "cli_name": "git-tools",
+      "category": "vcs",
+      "tags": ["git"],
+      "args": [
+        {
+          "name": "message",
+          "type": "string",
+          "description": "Commit message",
+          "required": true,
+          "flag": "-m"
+        },
+        {
+          "name": "all",
+          "type": "boolean",
+          "description": "Stage all changes",
+          "flag": "-a"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### `climax_call` — Execute a tool
+
+Execute a discovered tool by name with optional arguments.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tool_name` | string | The name of the tool to execute (e.g., "git_commit") |
+| `args` | object | Arguments to pass to the tool (keys match tool's argument names) |
+
+**Validation:**
+
+- Required arguments are checked before execution
+- Argument types are coerced where compatible (e.g., string "42" → integer 42)
+- Enum values are validated against allowed values
+- Extra arguments are ignored
+
+**Example request:**
+
+```json
+{
+  "tool": "climax_call",
+  "input": {
+    "tool_name": "git_commit",
+    "args": {
+      "message": "Add user authentication",
+      "all": true
+    }
+  }
+}
+```
+
+**Example response:**
+
+```
+Creating commit with message: Add user authentication
+
+[exit code: 0]
+```
+
+**Example error response (missing required argument):**
+
+```
+Error: Argument 'message' is required
+```
+
+### Switching to Classic Mode
+
+If you need all tools registered directly instead of using meta-tools:
+
+```bash
+climax --classic git docker
+```
+
+In classic mode, `climax_search` and `climax_call` are not available, and all individual tools appear directly in the MCP `tools/list` response.
 
 ## Policies
 
