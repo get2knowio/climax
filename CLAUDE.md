@@ -61,6 +61,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs pytest across Python 3.11, 3.12
 - N/A — in-memory index built at construction time (001-tool-discovery-index)
 - Python 3.11+ with full type hints + mcp>=1.7, pyyaml>=6.0, pydantic>=2.0, rich>=13.0 (no new deps) (002-mcp-meta-tools)
 - N/A — in-memory ToolIndex built at startup (002-mcp-meta-tools)
+- Python 3.11+ + mcp>=1.7, pyyaml>=6.0, pydantic>=2.0, rich>=13.0 (runtime); pytest>=8.0, pytest-asyncio>=0.24 (test); tiktoken (benchmark only) (003-discovery-tests)
 
 ## Recent Changes
 - 001-tool-discovery-index: Added Python 3.11+ + mcp>=1.7, pyyaml>=6.0, pydantic>=2.0, rich>=13.0 (no new deps — FR-015)
