@@ -135,7 +135,7 @@ class TestCategoryTags:
 class TestBundledConfigs:
     """Smoke tests for bundled YAML configs shipped with the package."""
 
-    @pytest.mark.parametrize("filename", ["git.yaml", "jj.yaml", "docker.yaml", "obsidian.yaml"])
+    @pytest.mark.parametrize("filename", ["git.yaml", "docker.yaml", "obsidian.yaml", "claude.yaml"])
     def test_bundled_loads(self, filename):
         from pathlib import Path
 

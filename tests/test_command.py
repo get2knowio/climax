@@ -16,8 +16,8 @@ class TestBuildCommand:
 
     def test_multi_word_subcommand(self):
         tool = ToolDef(name="t", description="test", command="bookmark list")
-        cmd = build_command("jj", tool, {})
-        assert cmd == ["jj", "bookmark", "list"]
+        cmd = build_command("app", tool, {})
+        assert cmd == ["app", "bookmark", "list"]
 
     def test_multi_word_base_command(self):
         tool = ToolDef(name="t", description="test", command="serve")

@@ -9,7 +9,7 @@ Instead of writing a custom MCP server for every CLI tool, write a YAML file tha
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌─────────────┐
 │  LLM Client  │────▶│     CLImax       │────▶│  Your CLI   │
-│  (Claude,    │ MCP │  (reads YAML,    │ sub │  (git, jj,  │
+│  (Claude,    │ MCP │  (reads YAML,    │ sub │  (git,      │
 │   Cursor,    │◀────│   runs commands) │◀────│   docker..) │
 │   etc.)      │     └──────────────────┘proc │             │
 └──────────────┘         ▲         ▲          └─────────────┘
@@ -98,7 +98,7 @@ uv sync       # or: pip install -e .
 climax git
 
 # Combine multiple CLIs into one server
-climax jj git docker
+climax git docker
 
 # Use classic mode — register all tools directly instead of meta-tools
 climax --classic git
@@ -132,6 +132,10 @@ Now just ask:
 ```
 
 The agent will run `kubectl --help`, inspect relevant subcommands, and generate a ready-to-use YAML config. No manual YAML writing required.
+
+### With other coding agents
+
+For Cursor, Windsurf, Copilot, or any agent that supports custom instructions, run `climax skill` to print the skill text and paste it into your agent's system prompt or rules file.
 
 ### With any LLM
 
@@ -235,9 +239,9 @@ With no arguments, lists the available bundled config names:
 ```bash
 climax list
 # Bundled configs:
+#   claude
 #   docker
 #   git
-#   jj
 #   obsidian
 ```
 
@@ -333,7 +337,7 @@ Combine multiple configs into a single server (progressive discovery by default)
   "mcpServers": {
     "dev-tools": {
       "command": "climax",
-      "args": ["jj", "git", "docker"]
+      "args": ["git", "docker"]
     }
   }
 }
@@ -348,7 +352,7 @@ Or use classic mode:
   "mcpServers": {
     "dev-tools": {
       "command": "climax",
-      "args": ["--classic", "jj", "git", "docker"]
+      "args": ["--classic", "git", "docker"]
     }
   }
 }
@@ -653,7 +657,6 @@ tools:
 CLImax ships with bundled configs in [`configs/`](configs/) — usable by bare name (`climax git`, `climax list docker`):
 
 - [`git.yaml`](configs/git.yaml) — Common Git operations (status, log, diff, branch, add, commit)
-- [`jj.yaml`](configs/jj.yaml) — Jujutsu version control (status, log, diff, describe, new, bookmarks, push)
 - [`docker.yaml`](configs/docker.yaml) — Docker container/image inspection (ps, images, logs, inspect, compose ps)
 - [`obsidian.yaml`](configs/obsidian.yaml) — Obsidian vault management (53 tools — read, write, search, tags, links, tasks, daily notes, properties). Uses inline flags for Obsidian's `key=value` argument style.
 

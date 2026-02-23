@@ -75,7 +75,7 @@ def real_configs():
     return [
         load_config("git"),
         load_config("docker"),
-        load_config("jj"),
+        load_config("claude"),
     ]
 
 
@@ -111,11 +111,11 @@ class TestDiscoveryModeIntegration:
         tool_names = {t.name for t in result.tools}
         assert tool_names == {"climax_search", "climax_call"}
 
-    async def test_search_version_control_surfaces_git_and_jj(self, default_server):
+    async def test_search_version_control_surfaces_git(self, default_server):
         """FR-024: Domain term search surfaces relevant CLIs.
 
-        Both git.yaml and jj.yaml have category='vcs' and tag 'version-control',
-        so searching for 'version-control' should surface tools from both.
+        git.yaml has category='vcs' and tag 'version-control',
+        so searching for 'version-control' should surface git tools.
         The search is a substring match against the pre-computed search text,
         so the hyphenated tag form is required.
         """
@@ -131,11 +131,9 @@ class TestDiscoveryModeIntegration:
         assert "git-tools" in cli_names, (
             f"Expected 'git-tools' in search results, got CLIs: {cli_names}"
         )
-        assert "jj-tools" in cli_names, (
-            f"Expected 'jj-tools' in search results, got CLIs: {cli_names}"
-        )
-        # docker-tools should NOT appear (category=containers, no 'version-control' tag)
+        # docker-tools and claude-tools should NOT appear (no 'version-control' tag)
         assert "docker-tools" not in cli_names
+        assert "claude-tools" not in cli_names
 
     async def test_cli_filter_returns_only_that_cli_tools(self, default_server, real_configs):
         """FR-025: CLI name filter returns only that CLI's tools.
@@ -195,7 +193,7 @@ class TestClassicModeIntegration:
         # Verify we get individual tool names, not meta-tools
         assert "git_status" in tool_names
         assert "docker_ps" in tool_names
-        assert "jj_status" in tool_names
+        assert "claude_ask" in tool_names
 
     async def test_classic_mode_tool_count_matches_config_total(self, classic_server, real_configs):
         """Total tools count matches sum of tools across all loaded configs."""
