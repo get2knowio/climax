@@ -4,11 +4,27 @@ Expose **any CLI** as MCP tools via a YAML configuration file.
 
 Instead of writing a custom MCP server for every CLI tool, write a YAML file that describes the CLI's interface and CLImax does the rest.
 
+## Contents
+
+- [How It Works](#how-it-works)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Connecting to MCP Clients](#connecting-to-mcp-clients)
+- [Discovery Modes](#discovery-modes)
+- [Creating Configs](#creating-configs)
+- [CLI Reference](#cli-reference)
+- [Bundled Configs](#bundled-configs)
+- [Config Reference](#config-reference)
+- [Meta-Tools Reference](#meta-tools-reference)
+- [Policies](#policies)
+- [Security](#security)
+- [License](#license)
+
 ## How It Works
 
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌─────────────┐
-│  LLM Client  │────▶│     CLImax       │────▶│  Your CLI   │
+│  MCP Client  │────▶│     CLImax       │────▶│ Target CLI  │
 │  (Claude,    │ MCP │  (reads YAML,    │ sub │  (git,      │
 │   Cursor,    │◀────│   runs commands) │◀────│   docker..) │
 │   etc.)      │     └──────────────────┘proc │             │
@@ -26,42 +42,6 @@ You need three things:
 3. **The CLI** — the actual tool you want to call (must be on PATH)
 
 Optionally, a **policy file** controls which tools are enabled, constrains argument values, overrides descriptions, and can route execution through Docker containers.
-
-## Progressive Discovery (Default Mode)
-
-By default, CLImax uses **progressive discovery** — the MCP `tools/list` response contains only two meta-tools:
-
-- **`climax_search`** — Find tools by keyword, category, CLI name, or browse all available CLIs
-- **`climax_call`** — Execute a discovered tool by name
-
-This keeps your LLM's context focused. Instead of seeing hundreds of tools at once, the agent discovers what's available on-demand:
-
-```
-Agent: "Search for git commit tools"
-  ↓
-climax_search(query="commit")
-  → Returns tools with names, descriptions, arguments, and types
-  ↓
-Agent: "Call git_commit with message='fix bug'"
-  ↓
-climax_call(tool_name="git_commit", args={message: "fix bug"})
-  → Executes the command and returns stdout/stderr/exit code
-```
-
-This is ideal for:
-- Large tool sets (hundreds of subcommands across multiple CLIs)
-- LLMs with tight context windows
-- Dynamic tool discovery workflows
-
-### Classic Mode (Backward Compatibility)
-
-If you prefer all tools registered directly in the MCP response (as in versions prior to `002-mcp-meta-tools`), use the `--classic` flag:
-
-```bash
-climax --classic git docker
-```
-
-In classic mode, `tools/list` returns all individual tools directly. Meta-tools (`climax_search` and `climax_call`) are not registered.
 
 ## Installation
 
@@ -112,6 +92,92 @@ climax git --log-level INFO
 # Use a custom config file (path or .yaml extension)
 climax my-config.yaml
 ```
+
+## Connecting to MCP Clients
+
+Add a CLImax server to your MCP client's config file. The JSON structure is the same everywhere — only the file location differs:
+
+| Client | Config file |
+|--------|-------------|
+| Claude Desktop | `claude_desktop_config.json` |
+| Claude Code | `.mcp.json` (project root) |
+| Cursor | `.cursor/mcp.json` |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` |
+
+### Basic setup
+
+```json
+{
+  "mcpServers": {
+    "git": {
+      "command": "climax",
+      "args": ["git"]
+    }
+  }
+}
+```
+
+Run `climax list` to see available [bundled config](#bundled-configs) names. Custom config files work too — pass a path instead of a name.
+
+By default, MCP clients will see two meta-tools (`climax_search` and `climax_call`) for on-demand tool discovery. See [Discovery Modes](#discovery-modes) for details.
+
+### Variations
+
+Change the `"args"` array to customize behavior:
+
+| Variation | `"args"` value |
+|-----------|---------------|
+| Classic mode (all tools directly) | `["--classic", "git"]` |
+| Multiple CLIs in one server | `["git", "docker"]` |
+| With a policy file | `["--policy", "/path/to/policy.yaml", "git"]` |
+| Custom config file | `["/path/to/my-config.yaml"]` |
+
+To run without installing, use `uvx` as the command:
+
+```json
+"command": "uvx",
+"args": ["climax-mcp", "git"]
+```
+
+## Discovery Modes
+
+### Progressive Discovery (Default)
+
+By default, CLImax registers only two meta-tools in the MCP `tools/list` response:
+
+- **`climax_search`** — Find tools by keyword, category, CLI name, or browse all available CLIs
+- **`climax_call`** — Execute a discovered tool by name
+
+Instead of seeing hundreds of tools at once, the agent discovers what's available on-demand:
+
+```
+Agent: "Search for git commit tools"
+  ↓
+climax_search(query="commit")
+  → Returns tools with names, descriptions, arguments, and types
+  ↓
+Agent: "Call git_commit with message='fix bug'"
+  ↓
+climax_call(tool_name="git_commit", args={message: "fix bug"})
+  → Executes the command and returns stdout/stderr/exit code
+```
+
+This is ideal for:
+- Large tool sets (hundreds of subcommands across multiple CLIs)
+- LLMs with tight context windows
+- Dynamic tool discovery workflows
+
+See [Meta-Tools Reference](#meta-tools-reference) for full parameter details.
+
+### Classic Mode
+
+If you prefer all tools registered directly in the MCP response, use the `--classic` flag:
+
+```bash
+climax --classic git docker
+```
+
+In classic mode, `tools/list` returns all individual tools directly. Meta-tools (`climax_search` and `climax_call`) are not registered. This matches the behavior of versions prior to `002-mcp-meta-tools`.
 
 ## Creating Configs
 
@@ -164,17 +230,15 @@ climax list my-config.yaml
 
 If you prefer to write configs manually, see the [Config Reference](#config-reference) section below.
 
-## Usage
+## CLI Reference
 
-### CLI Subcommands
+CLImax provides four subcommands for working with configs:
 
-CLImax provides three subcommands for working with configs:
-
-#### `climax run` — Start the MCP server
+### `climax run` — Start the MCP server
 
 Starts the MCP stdio server. This is what MCP clients connect to. Configs can be referenced by bare name (resolves to bundled configs) or by file path.
 
-By default, the server uses **progressive discovery mode** — `climax_search` and `climax_call` meta-tools are registered instead of individual CLI tools.
+By default, the server uses [progressive discovery mode](#discovery-modes) — `climax_search` and `climax_call` meta-tools are registered instead of individual CLI tools.
 
 ```bash
 climax run git
@@ -195,7 +259,7 @@ climax --classic git              # use classic mode
 
 | Flag | Values | Default | Description |
 |------|--------|---------|-------------|
-| `--classic` | *(flag)* | disabled | Register all individual tools directly instead of using meta-tools (progressive discovery mode is default) |
+| `--classic` | *(flag)* | disabled | Register all individual tools directly instead of using meta-tools ([progressive discovery](#discovery-modes) is default) |
 | `--policy` | path to YAML | *(none)* | Policy file to restrict tools and constrain arguments |
 | `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `WARNING` | Log verbosity (logs go to stderr) |
 | `--transport` | `stdio` | `stdio` | MCP transport protocol |
@@ -206,7 +270,7 @@ climax --classic git              # use classic mode
 |----------|-------------|
 | `CLIMAX_LOG_FILE` | Path to a log file for persistent logging (in addition to stderr). Useful for debugging MCP servers where stderr may not be visible. Always logs at DEBUG level. |
 
-#### `climax validate` — Check config files
+### `climax validate` — Check config files
 
 Validates YAML configs against the schema and checks that the referenced CLI binary exists on PATH. If `--policy` is provided, the policy file is also validated.
 
@@ -230,7 +294,7 @@ climax validate bad-config.yaml
 # 0 valid, 1 invalid
 ```
 
-#### `climax list` — Show available tools
+### `climax list` — Show available tools
 
 Displays a table of all tools defined across the given configs. If `--policy` is provided, the list is filtered to show only enabled tools, with any policy constraints and description overrides applied.
 
@@ -266,399 +330,28 @@ climax list --policy readonly.policy.yaml git
 
 This is useful for reviewing what a config exposes before connecting it to an LLM.
 
-### Connecting to MCP Clients
+### `climax skill` — Config generation skill
 
-Configs can be referenced by bare name (bundled configs) or by file path. Run `climax list` to see available bundled configs.
-
-By default, MCP clients will see `climax_search` and `climax_call` in the tools list. The actual CLI tools are discovered on-demand through `climax_search`. To use the classic mode where all tools are directly registered, add the `--classic` flag to the arguments.
-
-#### Claude Desktop
-
-Add to your `claude_desktop_config.json` (uses progressive discovery by default):
-
-```json
-{
-  "mcpServers": {
-    "git": {
-      "command": "climax",
-      "args": ["git"]
-    }
-  }
-}
-```
-
-Or use classic mode if you prefer all tools directly registered:
-
-```json
-{
-  "mcpServers": {
-    "git": {
-      "command": "climax",
-      "args": ["--classic", "git"]
-    }
-  }
-}
-```
-
-#### Claude Code
-
-Add to your `.mcp.json` (uses progressive discovery by default):
-
-```json
-{
-  "mcpServers": {
-    "git": {
-      "command": "climax",
-      "args": ["git"]
-    }
-  }
-}
-```
-
-Or use classic mode if you prefer all tools directly registered:
-
-```json
-{
-  "mcpServers": {
-    "git": {
-      "command": "climax",
-      "args": ["--classic", "git"]
-    }
-  }
-}
-```
-
-#### Multiple CLIs in one server
-
-Combine multiple configs into a single server (progressive discovery by default):
-
-```json
-{
-  "mcpServers": {
-    "dev-tools": {
-      "command": "climax",
-      "args": ["git", "docker"]
-    }
-  }
-}
-```
-
-All tools from all CLIs are searchable via `climax_search`, and callable via `climax_call`.
-
-Or use classic mode:
-
-```json
-{
-  "mcpServers": {
-    "dev-tools": {
-      "command": "climax",
-      "args": ["--classic", "git", "docker"]
-    }
-  }
-}
-```
-
-#### With a policy file
-
-```json
-{
-  "mcpServers": {
-    "git-readonly": {
-      "command": "climax",
-      "args": ["--policy", "/path/to/readonly.policy.yaml", "git"]
-    }
-  }
-}
-```
-
-#### With a custom config file
-
-```json
-{
-  "mcpServers": {
-    "my-cli": {
-      "command": "climax",
-      "args": ["/path/to/my-config.yaml"]
-    }
-  }
-}
-```
-
-#### Using uvx (no install required)
-
-```json
-{
-  "mcpServers": {
-    "git": {
-      "command": "uvx",
-      "args": ["climax-mcp", "git"]
-    }
-  }
-}
-```
-
-## Meta-Tools Reference
-
-CLImax exposes two meta-tools by default that enable progressive discovery:
-
-### `climax_search` — Discover tools
-
-Search for tools by keyword, category, or CLI name. Returns matching tools with their full argument schemas.
-
-**Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `query` | string | *(optional)* | Search by tool name or description (substring match) |
-| `category` | string | *(optional)* | Filter by tool category (e.g., "vcs", "container") |
-| `cli` | string | *(optional)* | Filter by CLI name (e.g., "git-tools", "docker-tools") |
-| `limit` | integer | 10 | Maximum number of results to return |
-
-**Behavior:**
-
-- If `query`, `category`, or `cli` are provided, returns matching tools with full details (name, description, CLI, category, tags, argument schema)
-- If none of these are provided (only `limit` or no parameters), returns a summary of all loaded CLIs with tool counts, categories, and tags
-
-**Example request:**
-
-```json
-{
-  "tool": "climax_search",
-  "input": {
-    "query": "commit",
-    "limit": 5
-  }
-}
-```
-
-**Example response (search mode):**
-
-```json
-{
-  "mode": "search",
-  "results": [
-    {
-      "tool_name": "git_commit",
-      "description": "Create a new commit",
-      "cli_name": "git-tools",
-      "category": "vcs",
-      "tags": ["git"],
-      "args": [
-        {
-          "name": "message",
-          "type": "string",
-          "description": "Commit message",
-          "required": true,
-          "flag": "-m"
-        },
-        {
-          "name": "all",
-          "type": "boolean",
-          "description": "Stage all changes",
-          "flag": "-a"
-        }
-      ]
-    }
-  ]
-}
-```
-
-### `climax_call` — Execute a tool
-
-Execute a discovered tool by name with optional arguments.
-
-**Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `tool_name` | string | The name of the tool to execute (e.g., "git_commit") |
-| `args` | object | Arguments to pass to the tool (keys match tool's argument names) |
-
-**Validation:**
-
-- Required arguments are checked before execution
-- Argument types are coerced where compatible (e.g., string "42" → integer 42)
-- Enum values are validated against allowed values
-- Extra arguments are ignored
-
-**Example request:**
-
-```json
-{
-  "tool": "climax_call",
-  "input": {
-    "tool_name": "git_commit",
-    "args": {
-      "message": "Add user authentication",
-      "all": true
-    }
-  }
-}
-```
-
-**Example response:**
-
-```
-Creating commit with message: Add user authentication
-
-[exit code: 0]
-```
-
-**Example error response (missing required argument):**
-
-```
-Error: Argument 'message' is required
-```
-
-### Switching to Classic Mode
-
-If you need all tools registered directly instead of using meta-tools:
+Outputs or installs the CLImax config-generation skill for use with coding agents.
 
 ```bash
-climax --classic git docker
+climax skill              # print skill text to stdout
+climax skill --path       # print path to SKILL.md
+climax skill --install    # install to .claude/commands/climax-config.md
 ```
 
-In classic mode, `climax_search` and `climax_call` are not available, and all individual tools appear directly in the MCP `tools/list` response.
+See [Creating Configs](#creating-configs) for usage details.
 
-## Policies
-
-A policy file separates **what tools exist** (the config, shareable) from **what's allowed** (the policy, per-user or per-deployment). This lets you share comprehensive tool configs while restricting access per environment.
-
-**No policy = today's behavior** — all tools enabled, local execution, no constraints.
-
-### Why use a policy?
-
-- Share a full `git.yaml` covering every subcommand, but only enable read-only tools for a particular deployment
-- Constrain argument values (e.g., file paths must match `^src/`, max count of 100)
-- Override tool descriptions for a specific context
-- Route all command execution through a Docker container for sandboxing
-
-### Policy YAML schema
-
-```yaml
-executor:                           # optional — execution environment
-  type: docker                      # "local" (default) or "docker"
-  image: "alpine/git:latest"        # required when type is docker
-  volumes:                          # bind mounts (env vars expanded)
-    - "${PROJECT_DIR}:/workspace"
-  working_dir: /workspace           # -w flag for docker run
-  network: none                     # --network flag for docker run
-
-default: disabled                   # "disabled" (default) or "enabled"
-                                    # disabled = only listed tools are exposed
-                                    # enabled  = all tools exposed, listed ones get constraints
-
-tools:
-  git_status: {}                    # enabled with no constraints
-  git_log:
-    description: "Show recent log (max 100)"   # overrides the config's description
-    args:
-      max_count:
-        max: 100                    # inclusive maximum for numeric args
-  git_add:
-    args:
-      path:
-        pattern: "^src/.*"          # regex (fullmatch) for string args
-  git_diff:
-    args:
-      commits:
-        min: 0                      # inclusive minimum for numeric args
-        max: 5
-```
-
-### Policy fields reference
-
-#### Top-level
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `executor` | object | `{type: "local"}` | Execution environment configuration |
-| `default` | string | `"disabled"` | Whether unmentioned tools are enabled or disabled |
-| `tools` | map | `{}` | Per-tool policies keyed by tool name |
-
-#### `executor`
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `type` | string | `"local"` | `"local"` or `"docker"` |
-| `image` | string | *(required for docker)* | Docker image to use |
-| `volumes` | list | `[]` | Bind mounts (`-v` flags). Environment variables are expanded. |
-| `working_dir` | string | `null` | Working directory inside the container (`-w` flag) |
-| `network` | string | `null` | Docker network mode (`--network` flag) |
-
-#### `tools.<name>`
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `description` | string | `null` | Override the tool's description (shown to the LLM) |
-| `args` | map | `{}` | Per-argument constraints keyed by argument name |
-
-#### `tools.<name>.args.<arg>`
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `pattern` | string | `null` | Regex pattern — value must fullmatch (for string args) |
-| `min` | number | `null` | Inclusive minimum (for numeric args) |
-| `max` | number | `null` | Inclusive maximum (for numeric args) |
-
-### Examples
-
-**Read-only Git policy** — only expose status, log, and diff:
-
-```yaml
-default: disabled
-tools:
-  git_status: {}
-  git_log:
-    args:
-      max_count:
-        max: 100
-  git_diff: {}
-```
-
-**Docker-sandboxed execution:**
-
-```yaml
-executor:
-  type: docker
-  image: alpine/git:latest
-  volumes:
-    - "${PROJECT_DIR}:/workspace"
-  working_dir: /workspace
-  network: none
-default: disabled
-tools:
-  git_status: {}
-  git_log: {}
-```
-
-**Allow all tools but constrain one:**
-
-```yaml
-default: enabled
-tools:
-  git_add:
-    args:
-      path:
-        pattern: "^src/.*"
-```
-
-### Behavior details
-
-- Unknown tool names in the policy are warned about and skipped (not an error)
-- Unknown argument names in a tool's policy are warned about and skipped
-- When `default: disabled`, only tools explicitly listed in `tools` are exposed
-- When `default: enabled`, all tools are exposed; listed tools get constraints/overrides applied
-- Argument validation happens before command execution — rejected calls never run the subprocess
-- Docker executor prepends `docker run --rm` with the configured flags to every command
-
-## Examples
+## Bundled Configs
 
 CLImax ships with bundled configs in [`configs/`](configs/) — usable by bare name (`climax git`, `climax list docker`):
 
-- [`git.yaml`](configs/git.yaml) — Common Git operations (status, log, diff, branch, add, commit)
-- [`docker.yaml`](configs/docker.yaml) — Docker container/image inspection (ps, images, logs, inspect, compose ps)
-- [`obsidian.yaml`](configs/obsidian.yaml) — Obsidian vault management (53 tools — read, write, search, tags, links, tasks, daily notes, properties). Uses inline flags for Obsidian's `key=value` argument style.
+| Config | CLI | Tools | Description |
+|--------|-----|------:|-------------|
+| [`git`](configs/git.yaml) | `git` | 6 | Common Git operations (status, log, diff, branch, add, commit) |
+| [`docker`](configs/docker.yaml) | `docker` | 5 | Container/image inspection (ps, images, logs, inspect, compose ps) |
+| [`obsidian`](configs/obsidian.yaml) | Obsidian CLI | 53 | Vault management — read, write, search, tags, links, tasks, daily notes, properties. Uses inline flags for `key=value` argument style. |
+| [`claude`](configs/claude.yaml) | `claude` | 4 | Claude Code integration — ask, ask with model, JSON output, custom system prompt |
 
 The `examples/` directory contains test-only configs:
 
@@ -749,7 +442,261 @@ tools:
 | `positional` | bool | `false` | Place value directly in the command (no flag) |
 | `enum` | list | `null` | Restrict values to this set |
 
-## Security Notes
+## Meta-Tools Reference
+
+CLImax exposes two meta-tools by default that enable [progressive discovery](#discovery-modes):
+
+### `climax_search` — Discover tools
+
+Search for tools by keyword, category, or CLI name. Returns matching tools with their full argument schemas.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | string | *(optional)* | Search by tool name or description (substring match) |
+| `category` | string | *(optional)* | Filter by tool category (e.g., "vcs", "container") |
+| `cli` | string | *(optional)* | Filter by CLI name (e.g., "git-tools", "docker-tools") |
+| `limit` | integer | 10 | Maximum number of results to return |
+
+**Behavior:**
+
+- If `query`, `category`, or `cli` are provided, returns matching tools with full details (name, description, CLI, category, tags, argument schema)
+- If none of these are provided (only `limit` or no parameters), returns a summary of all loaded CLIs with tool counts, categories, and tags
+
+**Example request:**
+
+```json
+{
+  "tool": "climax_search",
+  "input": {
+    "query": "commit",
+    "limit": 5
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "mode": "search",
+  "results": [
+    {
+      "tool_name": "git_commit",
+      "description": "Create a new commit",
+      "cli_name": "git-tools",
+      "category": "vcs",
+      "tags": ["git"],
+      "args": [
+        {
+          "name": "message",
+          "type": "string",
+          "description": "Commit message",
+          "required": true,
+          "flag": "-m"
+        },
+        {
+          "name": "all",
+          "type": "boolean",
+          "description": "Stage all changes",
+          "flag": "-a"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### `climax_call` — Execute a tool
+
+Execute a discovered tool by name with optional arguments.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tool_name` | string | The name of the tool to execute (e.g., "git_commit") |
+| `args` | object | Arguments to pass to the tool (keys match tool's argument names) |
+
+**Validation:**
+
+- Required arguments are checked before execution
+- Argument types are coerced where compatible (e.g., string "42" → integer 42)
+- Enum values are validated against allowed values
+- Extra arguments are ignored
+
+**Example request:**
+
+```json
+{
+  "tool": "climax_call",
+  "input": {
+    "tool_name": "git_commit",
+    "args": {
+      "message": "Add user authentication",
+      "all": true
+    }
+  }
+}
+```
+
+**Example response:**
+
+```
+Creating commit with message: Add user authentication
+
+[exit code: 0]
+```
+
+**Example error response (missing required argument):**
+
+```
+Error: Argument 'message' is required
+```
+
+## Policies
+
+A policy file restricts which tools are enabled and constrains argument values — separating **what tools exist** (the config) from **what's allowed** (the policy).
+
+**No policy = all tools enabled, no constraints.**
+
+### Quick example
+
+Read-only Git — only expose status, log, and diff, with a cap on log entries:
+
+```yaml
+default: disabled
+tools:
+  git_status: {}
+  git_log:
+    args:
+      max_count:
+        max: 100
+  git_diff: {}
+```
+
+```bash
+climax --policy readonly.policy.yaml git
+```
+
+### When to use policies
+
+| Goal | How |
+|------|-----|
+| Restrict to read-only tools | `default: disabled`, list only safe tools |
+| Constrain argument values | Add `pattern`, `min`, `max` under `args` |
+| Override tool descriptions | Add `description` per tool |
+| Sandbox execution in Docker | Add `executor` with `type: docker` |
+| Share configs, vary access | Same config YAML + different policy per environment |
+
+### Full schema
+
+```yaml
+executor:                           # optional — execution environment
+  type: docker                      # "local" (default) or "docker"
+  image: "alpine/git:latest"        # required when type is docker
+  volumes:                          # bind mounts (env vars expanded)
+    - "${PROJECT_DIR}:/workspace"
+  working_dir: /workspace           # -w flag for docker run
+  network: none                     # --network flag for docker run
+
+default: disabled                   # "disabled" (default) or "enabled"
+                                    # disabled = only listed tools are exposed
+                                    # enabled  = all tools exposed, listed ones get constraints
+
+tools:
+  git_status: {}                    # enabled with no constraints
+  git_log:
+    description: "Show recent log (max 100)"   # overrides the config's description
+    args:
+      max_count:
+        max: 100                    # inclusive maximum for numeric args
+  git_add:
+    args:
+      path:
+        pattern: "^src/.*"          # regex (fullmatch) for string args
+  git_diff:
+    args:
+      commits:
+        min: 0                      # inclusive minimum for numeric args
+        max: 5
+```
+
+### Field reference
+
+#### Top-level
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `executor` | object | `{type: "local"}` | Execution environment configuration |
+| `default` | string | `"disabled"` | Whether unmentioned tools are enabled or disabled |
+| `tools` | map | `{}` | Per-tool policies keyed by tool name |
+
+#### `executor`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | string | `"local"` | `"local"` or `"docker"` |
+| `image` | string | *(required for docker)* | Docker image to use |
+| `volumes` | list | `[]` | Bind mounts (`-v` flags). Environment variables are expanded. |
+| `working_dir` | string | `null` | Working directory inside the container (`-w` flag) |
+| `network` | string | `null` | Docker network mode (`--network` flag) |
+
+#### `tools.<name>`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `description` | string | `null` | Override the tool's description (shown to the LLM) |
+| `args` | map | `{}` | Per-argument constraints keyed by argument name |
+
+#### `tools.<name>.args.<arg>`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `pattern` | string | `null` | Regex pattern — value must fullmatch (for string args) |
+| `min` | number | `null` | Inclusive minimum (for numeric args) |
+| `max` | number | `null` | Inclusive maximum (for numeric args) |
+
+### More examples
+
+**Docker-sandboxed execution:**
+
+```yaml
+executor:
+  type: docker
+  image: alpine/git:latest
+  volumes:
+    - "${PROJECT_DIR}:/workspace"
+  working_dir: /workspace
+  network: none
+default: disabled
+tools:
+  git_status: {}
+  git_log: {}
+```
+
+**Allow all tools but constrain one:**
+
+```yaml
+default: enabled
+tools:
+  git_add:
+    args:
+      path:
+        pattern: "^src/.*"
+```
+
+### Behavior details
+
+- Unknown tool names in the policy are warned about and skipped (not an error)
+- Unknown argument names in a tool's policy are warned about and skipped
+- When `default: disabled`, only tools explicitly listed in `tools` are exposed
+- When `default: enabled`, all tools are exposed; listed tools get constraints/overrides applied
+- Argument validation happens before command execution — rejected calls never run the subprocess
+- Docker executor prepends `docker run --rm` with the configured flags to every command
+
+## Security
 
 - Commands are executed via `asyncio.create_subprocess_exec` (no shell injection)
 - Commands time out after 30 seconds by default — override per-tool with `timeout:` in the config
