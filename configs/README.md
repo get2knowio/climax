@@ -55,7 +55,7 @@ Claude Code non-interactive prompt execution via `-p` mode. Prompts are piped vi
 
 ## obsidian
 
-Obsidian vault management via the [Obsidian CLI](https://github.com/Obsidian-CLI/obsidian-cli). Uses inline flag syntax (`flag: "key="`) for Obsidian's `key=value` argument format.
+Obsidian vault management via the Obsidian CLI. Uses inline flag syntax (`flag: "key="`) for Obsidian's `key=value` argument format.
 
 | Field | Value |
 |-------|-------|
