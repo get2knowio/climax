@@ -93,6 +93,8 @@ climax git --log-level INFO
 climax my-config.yaml
 ```
 
+CLImax ships with ready-to-use configs for git, docker, claude, and obsidian — see [`configs/README.md`](configs/README.md) for details on each config, including available tools and environment variables.
+
 ## Connecting to MCP Clients
 
 Add a CLImax server to your MCP client's config file. The JSON structure is the same everywhere — only the file location differs:
