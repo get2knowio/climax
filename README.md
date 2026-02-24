@@ -54,7 +54,7 @@ Optionally, a **policy file** controls which tools are enabled, constrains argum
 uv tool install climax-mcp
 
 # Or run directly without installing
-uvx climax-mcp list
+uvx --from climax-mcp climax list
 ```
 
 ### With pip
