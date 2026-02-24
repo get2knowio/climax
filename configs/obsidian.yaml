@@ -3,7 +3,7 @@
 
 name: obsidian-tools
 description: "MCP tools for Obsidian vault management — read, write, search, and navigate notes"
-command: /Applications/Obsidian.app/Contents/MacOS/Obsidian
+command: Obsidian
 category: productivity
 tags: ["notes", "knowledge-base", "markdown"]
 
