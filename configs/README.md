@@ -9,6 +9,10 @@ climax list obsidian    # show all tools in a config
 
 All `command` values support `$ENV_VAR` and `~/` expansion at runtime.
 
+### Global Args
+
+Some configs use `global_args` — arguments defined at the config level that are automatically appended to every tool's command. Their defaults support env var expansion (e.g. `$OBSIDIAN_VAULT`), so each user can set the value in their MCP client's environment without editing the shared config. If the env var is unset or empty, the arg is silently omitted.
+
 ---
 
 ## git
@@ -61,7 +65,7 @@ Obsidian vault management via the Obsidian CLI. Uses inline flag syntax (`flag: 
 |-------|-------|
 | **Command** | `Obsidian` (from PATH) |
 | **Category** | `productivity` |
-| **Env vars** | None |
+| **Env vars** | `$OBSIDIAN_VAULT` — target vault name (set in your MCP client config) |
 
 **Tools (53):**
 

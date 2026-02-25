@@ -351,6 +351,68 @@ class TestMCPServer:
         assert mock_run.call_args.kwargs["stdin_data"] is None
 
 
+class TestMCPServerGlobalArgs:
+    """Tests for global_args in MCP server integration."""
+
+    async def test_global_arg_in_executed_command(self):
+        """Global args should appear in the command passed to run_command."""
+        tool_map = {
+            "search": ResolvedTool(
+                tool=ToolDef(
+                    name="search",
+                    description="Search stuff",
+                    command="search",
+                    args=[ToolArg(name="query", type=ArgType.string, flag="query=")],
+                ),
+                base_command="app",
+                global_args=[
+                    ToolArg(name="vault", type=ArgType.string, flag="vault=", default="myvault"),
+                ],
+            ),
+        }
+        server = create_server("test", tool_map)
+
+        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (0, "results\n", "")
+
+            handlers = server.request_handlers
+            request = types.CallToolRequest(
+                method="tools/call",
+                params=types.CallToolRequestParams(name="search", arguments={"query": "hello"}),
+            )
+            result = _unwrap(await handlers[types.CallToolRequest](request))
+
+        cmd = mock_run.call_args[0][0]
+        assert "vault=myvault" in cmd
+        assert cmd == ["app", "search", "query=hello", "vault=myvault"]
+
+    async def test_global_arg_absent_from_list_tools_schema(self):
+        """Global args should NOT appear in the tool's input schema."""
+        tool_map = {
+            "search": ResolvedTool(
+                tool=ToolDef(
+                    name="search",
+                    description="Search stuff",
+                    command="search",
+                    args=[ToolArg(name="query", type=ArgType.string, flag="query=")],
+                ),
+                base_command="app",
+                global_args=[
+                    ToolArg(name="vault", type=ArgType.string, flag="vault=", default="myvault"),
+                ],
+            ),
+        }
+        server = create_server("test", tool_map)
+
+        handlers = server.request_handlers
+        request = types.ListToolsRequest(method="tools/list")
+        result = _unwrap(await handlers[types.ListToolsRequest](request))
+
+        search_tool = result.tools[0]
+        assert "query" in search_tool.inputSchema["properties"]
+        assert "vault" not in search_tool.inputSchema["properties"]
+
+
 class TestMCPServerPolicy:
     """Tests for policy-aware server behavior."""
 

@@ -7,6 +7,13 @@ command: Obsidian
 category: productivity
 tags: ["notes", "knowledge-base", "markdown"]
 
+global_args:
+  - name: vault
+    description: "Target vault name — set via OBSIDIAN_VAULT env var in your MCP client config"
+    type: string
+    flag: "vault="
+    default: "$OBSIDIAN_VAULT"
+
 tools:
   # ---------------------------------------------------------------------------
   # Vault info

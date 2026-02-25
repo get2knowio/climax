@@ -174,6 +174,30 @@ def invalid_arg_type_yaml(tmp_path):
 
 
 @pytest.fixture
+def global_args_yaml(tmp_path):
+    """Config with global_args defined at config level."""
+    content = textwrap.dedent("""\
+        name: vault-cli
+        command: mycli
+        global_args:
+          - name: vault
+            type: string
+            flag: "vault="
+            default: "$MY_VAULT"
+        tools:
+          - name: do_thing
+            description: Do a thing
+            args:
+              - name: query
+                type: string
+                flag: "query="
+    """)
+    p = tmp_path / "global_args.yaml"
+    p.write_text(content)
+    return p
+
+
+@pytest.fixture
 def category_tags_yaml(tmp_path):
     """Config with both category and tags fields."""
     content = textwrap.dedent("""\

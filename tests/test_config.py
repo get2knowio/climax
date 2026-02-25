@@ -132,6 +132,27 @@ class TestCategoryTags:
         assert config.tags == ["version-control", "commits", "branches"]
 
 
+class TestGlobalArgs:
+    """Tests for global_args config field."""
+
+    def test_yaml_parsing(self, global_args_yaml):
+        config = load_config(global_args_yaml)
+        assert len(config.global_args) == 1
+        assert config.global_args[0].name == "vault"
+        assert config.global_args[0].flag == "vault="
+        assert config.global_args[0].default == "$MY_VAULT"
+
+    def test_backward_compat_no_global_args(self, valid_yaml):
+        config = load_config(valid_yaml)
+        assert config.global_args == []
+
+    def test_carried_to_resolved_tool(self, global_args_yaml):
+        _, tool_map, _configs = load_configs([global_args_yaml])
+        resolved = tool_map["do_thing"]
+        assert len(resolved.global_args) == 1
+        assert resolved.global_args[0].name == "vault"
+
+
 class TestBundledConfigs:
     """Smoke tests for bundled YAML configs shipped with the package."""
 

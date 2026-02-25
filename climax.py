@@ -103,6 +103,7 @@ class CLImaxConfig(BaseModel):
     working_dir: str | None = None
     category: str | None = None
     tags: list[str] = Field(default_factory=list)
+    global_args: list[ToolArg] = Field(default_factory=list)
     tools: list[ToolDef]
 
 
@@ -116,6 +117,7 @@ class ResolvedTool(BaseModel):
     base_command: str
     env: dict[str, str] = Field(default_factory=dict)
     working_dir: str | None = None
+    global_args: list[ToolArg] = Field(default_factory=list)
     description_override: str | None = None
     arg_constraints: dict[str, "ArgConstraint"] = Field(default_factory=dict)
 
@@ -415,6 +417,7 @@ def load_configs(paths: list[str | Path]) -> tuple[str, dict[str, ResolvedTool],
                 base_command=config.command,
                 env=config.env,
                 working_dir=config.working_dir,
+                global_args=config.global_args,
             )
 
     # Server name: use the single config name, or combine them
@@ -693,6 +696,7 @@ def build_command(
     base_cmd: str,
     tool_def: ToolDef,
     arguments: dict[str, Any],
+    global_args: list[ToolArg] | None = None,
 ) -> list[str]:
     """
     Build a subprocess-safe command list from the base command,
@@ -741,6 +745,31 @@ def build_command(
         else:
             cmd.append(flag)
             cmd.append(str(value))
+
+    # Third pass: global args (config-level args appended to every tool)
+    for ga in global_args or []:
+        if ga.default is None:
+            continue
+        raw = str(ga.default)
+        resolved_val = os.path.expandvars(raw)
+        # If still contains $ after expansion → env var unset → skip
+        if resolved_val == raw and "$" in raw:
+            continue
+        if not resolved_val:
+            continue
+
+        flag = ga.flag
+        if not flag:
+            flag = f"--{ga.name.replace('_', '-')}"
+
+        if ga.type == ArgType.boolean:
+            if resolved_val in ("true", "True", "1"):
+                cmd.append(flag)
+        elif flag.endswith("="):
+            cmd.append(f"{flag}{resolved_val}")
+        else:
+            cmd.append(flag)
+            cmd.append(resolved_val)
 
     return cmd
 
@@ -893,7 +922,7 @@ def create_server(
                 logger.warning("Policy rejected %s: %s", resolved.tool.name, "; ".join(errors))
                 return [types.TextContent(type="text", text=error_text)]
 
-        cmd = build_command(resolved.base_command, resolved.tool, arguments)
+        cmd = build_command(resolved.base_command, resolved.tool, arguments, global_args=resolved.global_args)
 
         # Extract stdin arg value if present
         stdin_data = None
