@@ -1,6 +1,6 @@
 """Tests for build_input_schema — JSON Schema generation."""
 
-from climax import ArgType, ToolArg, build_input_schema
+from climax_mcp import ArgType, ToolArg, build_input_schema
 
 
 class TestBuildInputSchema:

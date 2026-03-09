@@ -11,7 +11,7 @@ import pytest
 
 import mcp.types as types
 
-from climax import create_server, load_config, load_configs, ResolvedTool, ToolDef, ToolArg, ArgType
+from climax_mcp import create_server, load_config, load_configs, ResolvedTool, ToolDef, ToolArg, ArgType
 
 
 COREUTILS_YAML = Path(__file__).parent.parent / "examples" / "coreutils.yaml"

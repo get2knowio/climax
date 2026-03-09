@@ -4,7 +4,7 @@ import textwrap
 
 import pytest
 
-from climax import (
+from climax_mcp import (
     ArgConstraint,
     ArgType,
     CLImaxConfig,

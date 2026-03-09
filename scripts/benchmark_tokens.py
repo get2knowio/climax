@@ -13,7 +13,7 @@ Usage:
 import json
 import sys
 
-from climax import (
+from climax_mcp import (
     CONFIGS_DIR,
     CLImaxConfig,
     ToolIndex,

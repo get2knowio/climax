@@ -9,7 +9,7 @@ import pytest
 
 import mcp.types as types
 
-from climax import (
+from climax_mcp import (
     ArgConstraint,
     ArgType,
     DefaultPolicy,
@@ -147,7 +147,7 @@ class TestDockerE2E:
         tool_map = apply_policy(tool_map, policy)
         server = create_server("mytools", tool_map, executor=policy.executor)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "On branch main\n", "")
 
             handlers = server.request_handlers
@@ -189,7 +189,7 @@ class TestDockerE2E:
         tool_map = apply_policy(tool_map, policy)
         server = create_server("mytools", tool_map, executor=policy.executor)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "file1\nfile2\n", "")
 
             handlers = server.request_handlers
@@ -231,7 +231,7 @@ class TestDockerE2E:
         tool_map = apply_policy(tool_map, policy)
         server = create_server("mytools", tool_map, executor=policy.executor)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             handlers = server.request_handlers
             request = types.CallToolRequest(
                 method="tools/call",
@@ -269,7 +269,7 @@ class TestDockerE2E:
         handlers = server.request_handlers
 
         for tool_name, expected_subcmd in [("tool_a", "alpha"), ("tool_b", "beta")]:
-            with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+            with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
                 mock_run.return_value = (0, "ok\n", "")
 
                 request = types.CallToolRequest(

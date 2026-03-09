@@ -12,7 +12,7 @@ import pytest
 
 import mcp.types as types
 
-from climax import (
+from climax_mcp import (
     CLImaxConfig,
     ResolvedTool,
     ToolIndex,
@@ -240,7 +240,7 @@ class TestOutputEquivalence:
         mock_output = (0, "mock output\n", "")
 
         # Call via discovery mode (climax_call)
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = mock_output
             discovery_result = await _call_tool(
                 discovery_server,
@@ -249,7 +249,7 @@ class TestOutputEquivalence:
             )
 
         # Call via classic mode (direct call_tool)
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = mock_output
             classic_result = await _call_tool(classic_server, "git_status", {})
 
@@ -275,7 +275,7 @@ class TestOutputEquivalence:
         mock_error_output = (1, "", "fatal: not a git repository\n")
 
         # Call via discovery mode (climax_call)
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = mock_error_output
             discovery_result = await _call_tool(
                 discovery_server,
@@ -284,7 +284,7 @@ class TestOutputEquivalence:
             )
 
         # Call via classic mode (direct call_tool)
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = mock_error_output
             classic_result = await _call_tool(classic_server, "git_status", {})
 

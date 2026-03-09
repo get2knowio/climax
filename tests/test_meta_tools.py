@@ -7,7 +7,7 @@ import pytest
 
 import mcp.types as types
 
-from climax import (
+from climax_mcp import (
     ArgConstraint,
     ArgType,
     CLImaxConfig,
@@ -270,7 +270,7 @@ class TestClimaxCall:
         """Call tool with no args returns stdout."""
         server, _ = _make_default_server()
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "On branch main\n", "")
             result = await _call_tool(
                 server, "climax_call", {"tool_name": "git_status"}
@@ -283,7 +283,7 @@ class TestClimaxCall:
         """Call tool with valid args passes them correctly."""
         server, _ = _make_default_server()
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "committed\n", "")
             result = await _call_tool(
                 server,
@@ -378,7 +378,7 @@ class TestClimaxCall:
         index = ToolIndex.from_configs(configs)
         server = create_server("test-coerce", tool_map, index=index, classic=False)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "42 items\n", "")
             result = await _call_tool(
                 server, "climax_call", {"tool_name": "num_count", "args": {"n": "42"}}
@@ -424,7 +424,7 @@ class TestClimaxCall:
         """Extra keys in args are silently ignored."""
         server, _ = _make_default_server()
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "ok\n", "")
             result = await _call_tool(
                 server,
@@ -442,7 +442,7 @@ class TestClimaxCall:
         """args=None with no required args succeeds."""
         server, _ = _make_default_server()
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "branch list\n", "")
             # Do not include "args" key at all -- handler defaults to {}
             result = await _call_tool(
@@ -489,7 +489,7 @@ class TestDefaultMode:
             assert resolved is not None, f"Tool '{name}' not found in index"
 
         # And calling via climax_call should not return "Unknown tool"
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "output\n", "")
             for name in all_tool_names:
                 result = await _call_tool(
@@ -502,7 +502,7 @@ class TestDefaultMode:
         """Calling an individual tool name directly returns 'Unknown tool' in default mode."""
         server, _ = _make_default_server()
 
-        with patch("climax.run_command", new_callable=AsyncMock):
+        with patch("climax_mcp.run_command", new_callable=AsyncMock):
             result = await _call_tool(server, "git_status", {})
 
         assert "Unknown tool: git_status" in result.content[0].text
@@ -841,7 +841,7 @@ class TestClimaxCallPolicy:
         server = create_server("test-policy", tool_map, index=index, classic=False)
 
         # Valid pattern: should succeed
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "hello world\n", "")
             result = await _call_tool(
                 server, "climax_call",

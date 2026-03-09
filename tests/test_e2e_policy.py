@@ -11,7 +11,7 @@ import pytest
 
 import mcp.types as types
 
-from climax import (
+from climax_mcp import (
     apply_policy,
     create_server,
     load_configs,

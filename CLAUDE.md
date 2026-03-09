@@ -1,10 +1,10 @@
 # CLImax
 
-CLImax is a single-file Python app (`climax.py`) that exposes any CLI as MCP tools via YAML configuration. YAML configs in, MCP tools out over stdio. It is **not** a network server — it communicates via stdin/stdout using the MCP stdio transport.
+CLImax is a single-file Python app (`climax_mcp.py`) that exposes any CLI as MCP tools via YAML configuration. YAML configs in, MCP tools out over stdio. It is **not** a network server — it communicates via stdin/stdout using the MCP stdio transport.
 
 ## Architecture
 
-- **Single source file**: All logic lives in `climax.py` (~530 lines)
+- **Single source file**: All logic lives in `climax_mcp.py`
 - **Config models**: Pydantic models (`CLImaxConfig`, `ToolDef`, `ToolArg`) validate YAML
 - **Flow**: YAML config → Pydantic validation → MCP tool registration → subprocess execution on tool call
 - **No shell**: Commands run via `asyncio.create_subprocess_exec` (no shell injection)

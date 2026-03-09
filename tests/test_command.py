@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from climax import ArgType, ToolArg, ToolDef, build_command
+from climax_mcp import ArgType, ToolArg, ToolDef, build_command
 
 
 class TestBuildCommand:

@@ -7,7 +7,7 @@ import pytest
 
 import mcp.types as types
 
-from climax import (
+from climax_mcp import (
     ArgType,
     CLImaxConfig,
     ResolvedTool,
@@ -196,7 +196,7 @@ class TestTimeoutErrorParity:
         """Mock run_command returning exit-code 1; both modes produce the same text."""
         default_server, classic_server = paired_servers
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (1, "", "error output")
 
             # Default mode via climax_call
@@ -224,7 +224,7 @@ class TestTimeoutErrorParity:
         """Mock run_command returning a timeout result; both modes produce the same text."""
         default_server, classic_server = paired_servers
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (-1, "", "Command timed out after 30s")
 
             default_result = await _call_tool(
@@ -250,7 +250,7 @@ class TestTimeoutErrorParity:
         """Mock run_command returning success; both modes produce the same text."""
         default_server, classic_server = paired_servers
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "output\n", "")
 
             default_result = await _call_tool(

@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from climax import (
+from climax_mcp import (
     CLImaxConfig,
     ToolArg,
     ArgType,

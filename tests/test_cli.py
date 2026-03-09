@@ -11,8 +11,8 @@ from unittest.mock import patch, MagicMock
 import pytest
 from rich.console import Console
 
-import climax
-from climax import cmd_validate, cmd_list, cmd_run, cmd_skill, main
+import climax_mcp
+from climax_mcp import cmd_validate, cmd_list, cmd_run, cmd_skill, main
 
 
 def _make_args(configs, policy=None):
@@ -202,7 +202,7 @@ class TestBundledNameResolution:
             policy=None,
             log_level="WARNING",
         )
-        with patch("climax.asyncio.run"):
+        with patch("climax_mcp.asyncio.run"):
             cmd_run(args)
 
     def test_unknown_bundled_name_errors(self):
@@ -217,7 +217,7 @@ class TestBundledNameResolution:
 class TestBackwardCompat:
     def test_no_subcommand_runs_as_run(self, valid_yaml):
         """climax config.yaml should work the same as climax run config.yaml."""
-        with patch("climax.cmd_run") as mock_run:
+        with patch("climax_mcp.cmd_run") as mock_run:
             with patch("sys.argv", ["climax", str(valid_yaml)]):
                 main()
             mock_run.assert_called_once()
@@ -226,7 +226,7 @@ class TestBackwardCompat:
 
     def test_no_subcommand_with_log_level(self, valid_yaml):
         """climax config.yaml --log-level DEBUG should still work."""
-        with patch("climax.cmd_run") as mock_run:
+        with patch("climax_mcp.cmd_run") as mock_run:
             with patch("sys.argv", ["climax", str(valid_yaml), "--log-level", "DEBUG"]):
                 main()
             args = mock_run.call_args[0][0]
@@ -412,7 +412,7 @@ class TestCmdListPolicy:
 
     def test_backward_compat_with_policy(self, valid_yaml, minimal_policy_yaml):
         """--policy with backward compat run mode."""
-        with patch("climax.cmd_run") as mock_run:
+        with patch("climax_mcp.cmd_run") as mock_run:
             with patch("sys.argv", [
                 "climax", "--policy", str(minimal_policy_yaml), str(valid_yaml),
             ]):
@@ -470,7 +470,7 @@ class TestCmdRun:
             policy=None,
             log_level="WARNING",
         )
-        with patch("climax.asyncio.run") as mock_arun:
+        with patch("climax_mcp.asyncio.run") as mock_arun:
             cmd_run(args)
         mock_arun.assert_called_once()
 
@@ -481,8 +481,8 @@ class TestCmdRun:
             policy=str(minimal_policy_yaml),
             log_level="WARNING",
         )
-        with patch("climax.asyncio.run") as mock_arun:
-            with patch("climax.create_server") as mock_create:
+        with patch("climax_mcp.asyncio.run") as mock_arun:
+            with patch("climax_mcp.create_server") as mock_create:
                 mock_create.return_value = MagicMock()
                 cmd_run(args)
         mock_create.assert_called_once()
@@ -496,17 +496,17 @@ class TestCmdRun:
             policy=None,
             log_level="DEBUG",
         )
-        with patch("climax.asyncio.run"):
+        with patch("climax_mcp.asyncio.run"):
             cmd_run(args)
-        assert climax.logger.level == logging.DEBUG
+        assert climax_mcp.logger.level == logging.DEBUG
         # Reset to avoid affecting other tests
-        climax.logger.setLevel(logging.WARNING)
+        climax_mcp.logger.setLevel(logging.WARNING)
 
 
 class TestMainSubcommands:
     def test_main_validate_subcommand(self, valid_yaml):
         """main() with 'validate' dispatches to cmd_validate."""
-        with patch("climax.cmd_validate", return_value=0) as mock_validate:
+        with patch("climax_mcp.cmd_validate", return_value=0) as mock_validate:
             with patch("sys.argv", ["climax", "validate", str(valid_yaml)]):
                 with pytest.raises(SystemExit) as exc_info:
                     main()
@@ -515,7 +515,7 @@ class TestMainSubcommands:
 
     def test_main_list_subcommand(self, valid_yaml):
         """main() with 'list' dispatches to cmd_list."""
-        with patch("climax.cmd_list", return_value=0) as mock_list:
+        with patch("climax_mcp.cmd_list", return_value=0) as mock_list:
             with patch("sys.argv", ["climax", "list", str(valid_yaml)]):
                 with pytest.raises(SystemExit) as exc_info:
                     main()
@@ -524,14 +524,14 @@ class TestMainSubcommands:
 
     def test_main_run_subcommand(self, valid_yaml):
         """main() with 'run' dispatches to cmd_run."""
-        with patch("climax.cmd_run") as mock_run:
+        with patch("climax_mcp.cmd_run") as mock_run:
             with patch("sys.argv", ["climax", "run", str(valid_yaml)]):
                 main()
             mock_run.assert_called_once()
 
     def test_main_validate_with_policy(self, valid_yaml, minimal_policy_yaml):
         """main() passes --policy flag through to cmd_validate."""
-        with patch("climax.cmd_validate", return_value=0) as mock_validate:
+        with patch("climax_mcp.cmd_validate", return_value=0) as mock_validate:
             with patch("sys.argv", [
                 "climax", "validate", "--policy", str(minimal_policy_yaml), str(valid_yaml),
             ]):
@@ -547,9 +547,9 @@ class TestLogFileEnvVar:
         log_file = tmp_path / "climax_test.log"
 
         with patch.dict(os.environ, {"CLIMAX_LOG_FILE": str(log_file)}):
-            importlib.reload(climax)
+            importlib.reload(climax_mcp)
 
-        logger = climax.logger
+        logger = climax_mcp.logger
         file_handlers = [
             h for h in logger.handlers if isinstance(h, logging.FileHandler)
         ]
@@ -562,4 +562,4 @@ class TestLogFileEnvVar:
         fh.close()
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("CLIMAX_LOG_FILE", None)
-            importlib.reload(climax)
+            importlib.reload(climax_mcp)

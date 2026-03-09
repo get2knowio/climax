@@ -35,7 +35,8 @@ Repository = "https://github.com/get2knowio/climax"
 Issues = "https://github.com/get2knowio/climax/issues"
 
 [project.scripts]
-climax = "climax:main"
+climax-mcp = "climax_mcp:main"
+climax = "climax_mcp:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -43,7 +44,7 @@ testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]
-only-include = ["climax.py", "configs", "skill"]
+only-include = ["climax_mcp.py", "configs", "skill"]
 
 [build-system]
 requires = ["hatchling"]

@@ -24,7 +24,7 @@ Existing configs work without changes — both fields default to `None`/`[]`.
 ## Step 2: Build a ToolIndex
 
 ```python
-from climax import load_config, ToolIndex
+from climax_mcp import load_config, ToolIndex
 
 # Load configs (existing function)
 configs = [load_config("git"), load_config("docker"), load_config("obsidian")]

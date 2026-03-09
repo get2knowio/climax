@@ -6,7 +6,7 @@ import pytest
 
 import mcp.types as types
 
-from climax import (
+from climax_mcp import (
     ArgConstraint,
     ArgType,
     ExecutorConfig,
@@ -74,7 +74,7 @@ class TestMCPServer:
         tool_map = _build_tool_map()
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "Hello World\n", "")
 
             handlers = server.request_handlers
@@ -92,7 +92,7 @@ class TestMCPServer:
         tool_map = _build_tool_map()
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (1, "", "command failed\n")
 
             handlers = server.request_handlers
@@ -110,7 +110,7 @@ class TestMCPServer:
         tool_map = _build_tool_map()
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock):
+        with patch("climax_mcp.run_command", new_callable=AsyncMock):
             handlers = server.request_handlers
             request = types.CallToolRequest(
                 method="tools/call",
@@ -124,7 +124,7 @@ class TestMCPServer:
         tool_map = _build_tool_map()
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "ok\n", "")
 
             handlers = server.request_handlers
@@ -140,7 +140,7 @@ class TestMCPServer:
         tool_map = _build_tool_map()
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "output\n", "warning msg\n")
 
             handlers = server.request_handlers
@@ -159,7 +159,7 @@ class TestMCPServer:
         tool_map = _build_tool_map()
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "", "")
 
             handlers = server.request_handlers
@@ -191,7 +191,7 @@ class TestMCPServer:
 
         long_value = "x" * 200
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "ok\n", "")
 
             import logging
@@ -230,7 +230,7 @@ class TestMCPServer:
         }
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "Hello World\n", "")
 
             handlers = server.request_handlers
@@ -267,7 +267,7 @@ class TestMCPServer:
         }
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "ok\n", "")
 
             handlers = server.request_handlers
@@ -298,7 +298,7 @@ class TestMCPServer:
         }
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "created\n", "")
 
             handlers = server.request_handlers
@@ -334,7 +334,7 @@ class TestMCPServer:
         }
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "created\n", "")
 
             handlers = server.request_handlers
@@ -372,7 +372,7 @@ class TestMCPServerGlobalArgs:
         }
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "results\n", "")
 
             handlers = server.request_handlers
@@ -465,7 +465,7 @@ class TestMCPServerPolicy:
         }
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             handlers = server.request_handlers
             request = types.CallToolRequest(
                 method="tools/call",
@@ -494,7 +494,7 @@ class TestMCPServerPolicy:
         }
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "hello world\n", "")
 
             handlers = server.request_handlers
@@ -518,7 +518,7 @@ class TestMCPServerPolicy:
         executor = ExecutorConfig(type=ExecutorType.docker, image="alpine:latest")
         server = create_server("test", tool_map, executor=executor)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "hi\n", "")
 
             handlers = server.request_handlers
@@ -537,7 +537,7 @@ class TestMCPServerPolicy:
         tool_map = _build_tool_map()
         server = create_server("test", tool_map)
 
-        with patch("climax.run_command", new_callable=AsyncMock) as mock_run:
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = (0, "ok\n", "")
 
             handlers = server.request_handlers

@@ -2,7 +2,7 @@
 
 import pytest
 
-from climax import (
+from climax_mcp import (
     ArgConstraint,
     ArgType,
     ToolArg,

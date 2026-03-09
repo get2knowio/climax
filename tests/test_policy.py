@@ -5,7 +5,7 @@ import textwrap
 import pytest
 from pydantic import ValidationError
 
-from climax import (
+from climax_mcp import (
     ArgConstraint,
     ArgType,
     DefaultPolicy,
