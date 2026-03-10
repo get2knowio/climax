@@ -1104,7 +1104,7 @@ def cmd_validate(args, console: Console | None = None) -> int:
         except ValidationError as e:
             console.print(f"  [red]✗[/red] {path}")
             for err in e.errors():
-                loc = " → ".join(str(l) for l in err["loc"])
+                loc = " → ".join(str(part) for part in err["loc"])
                 console.print(f"    {loc}: {err['msg']}")
             invalid += 1
         except Exception as e:
@@ -1120,7 +1120,7 @@ def cmd_validate(args, console: Console | None = None) -> int:
         except ValidationError as e:
             console.print(f"  [red]✗[/red] {policy_path} (policy)")
             for err in e.errors():
-                loc = " → ".join(str(l) for l in err["loc"])
+                loc = " → ".join(str(part) for part in err["loc"])
                 console.print(f"    {loc}: {err['msg']}")
             invalid += 1
         except Exception as e:

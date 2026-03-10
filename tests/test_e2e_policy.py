@@ -4,7 +4,6 @@ Uses real subprocess execution (echo/printf) to test the full pipeline
 with policy applied.
 """
 
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -15,7 +14,6 @@ from climax_mcp import (
     apply_policy,
     create_server,
     load_configs,
-    load_policy,
     PolicyConfig,
     DefaultPolicy,
     ToolPolicy,

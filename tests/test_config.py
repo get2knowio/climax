@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from climax_mcp import CLImaxConfig, load_config, load_configs
+from climax_mcp import load_config, load_configs
 
 
 class TestLoadConfig:

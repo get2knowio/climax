@@ -481,7 +481,7 @@ class TestCmdRun:
             policy=str(minimal_policy_yaml),
             log_level="WARNING",
         )
-        with patch("climax_mcp.asyncio.run") as mock_arun:
+        with patch("climax_mcp.asyncio.run"):
             with patch("climax_mcp.create_server") as mock_create:
                 mock_create.return_value = MagicMock()
                 cmd_run(args)

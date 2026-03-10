@@ -2,7 +2,6 @@
 
 from unittest.mock import patch, AsyncMock
 
-import pytest
 
 import mcp.types as types
 
@@ -201,7 +200,7 @@ class TestMCPServer:
                     method="tools/call",
                     params=types.CallToolRequestParams(name="greet", arguments={"name": long_value}),
                 )
-                result = _unwrap(await handlers[types.CallToolRequest](request))
+                _unwrap(await handlers[types.CallToolRequest](request))
 
         # Full value should reach run_command (not truncated)
         cmd = mock_run.call_args[0][0]
@@ -241,7 +240,7 @@ class TestMCPServer:
                     arguments={"name": "World", "directory": "/my/project"},
                 ),
             )
-            result = _unwrap(await handlers[types.CallToolRequest](request))
+            _unwrap(await handlers[types.CallToolRequest](request))
 
         # working_dir should be the cwd arg value, not the static one
         mock_run.assert_called_once()
@@ -275,7 +274,7 @@ class TestMCPServer:
                 method="tools/call",
                 params=types.CallToolRequestParams(name="greet", arguments={}),
             )
-            result = _unwrap(await handlers[types.CallToolRequest](request))
+            _unwrap(await handlers[types.CallToolRequest](request))
 
         mock_run.assert_called_once()
         assert mock_run.call_args.kwargs["working_dir"] == "/default/dir"
@@ -309,7 +308,7 @@ class TestMCPServer:
                     arguments={"path": "notes/test.md", "content": "Hello\nWorld"},
                 ),
             )
-            result = _unwrap(await handlers[types.CallToolRequest](request))
+            _unwrap(await handlers[types.CallToolRequest](request))
 
         mock_run.assert_called_once()
         cmd = mock_run.call_args[0][0]
@@ -345,7 +344,7 @@ class TestMCPServer:
                     arguments={"path": "notes/test.md"},
                 ),
             )
-            result = _unwrap(await handlers[types.CallToolRequest](request))
+            _unwrap(await handlers[types.CallToolRequest](request))
 
         mock_run.assert_called_once()
         assert mock_run.call_args.kwargs["stdin_data"] is None
@@ -380,7 +379,7 @@ class TestMCPServerGlobalArgs:
                 method="tools/call",
                 params=types.CallToolRequestParams(name="search", arguments={"query": "hello"}),
             )
-            result = _unwrap(await handlers[types.CallToolRequest](request))
+            _unwrap(await handlers[types.CallToolRequest](request))
 
         cmd = mock_run.call_args[0][0]
         assert "vault=myvault" in cmd
@@ -526,7 +525,7 @@ class TestMCPServerPolicy:
                 method="tools/call",
                 params=types.CallToolRequestParams(name="greet", arguments={}),
             )
-            result = _unwrap(await handlers[types.CallToolRequest](request))
+            _unwrap(await handlers[types.CallToolRequest](request))
 
         cmd = mock_run.call_args[0][0]
         assert cmd[:4] == ["docker", "run", "--rm", "alpine:latest"]
@@ -545,7 +544,7 @@ class TestMCPServerPolicy:
                 method="tools/call",
                 params=types.CallToolRequestParams(name="status", arguments={}),
             )
-            result = _unwrap(await handlers[types.CallToolRequest](request))
+            _unwrap(await handlers[types.CallToolRequest](request))
 
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "git"

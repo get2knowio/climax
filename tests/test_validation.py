@@ -1,6 +1,5 @@
 """Tests for validate_arguments — policy constraint checking."""
 
-import pytest
 
 from climax_mcp import (
     ArgConstraint,

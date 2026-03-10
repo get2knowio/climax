@@ -16,11 +16,8 @@ import sys
 from climax_mcp import (
     CONFIGS_DIR,
     CLImaxConfig,
-    ToolIndex,
     build_input_schema,
     load_config,
-    create_server,
-    ResolvedTool,
 )
 
 try:

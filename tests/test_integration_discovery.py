@@ -13,7 +13,6 @@ import pytest
 import mcp.types as types
 
 from climax_mcp import (
-    CLImaxConfig,
     ResolvedTool,
     ToolIndex,
     create_server,

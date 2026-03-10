@@ -9,7 +9,6 @@ from climax_mcp import (
     ArgConstraint,
     ArgType,
     DefaultPolicy,
-    ExecutorConfig,
     ExecutorType,
     PolicyConfig,
     ResolvedTool,

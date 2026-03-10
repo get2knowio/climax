@@ -3,7 +3,6 @@
 import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
 
-import pytest
 
 from climax_mcp import run_command
 
