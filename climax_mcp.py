@@ -1250,7 +1250,7 @@ def cmd_skill(args, console: Console | None = None) -> int:
 
 
 def cmd_run(args) -> None:
-    """Start the MCP server (stdio transport)."""
+    """Start the MCP server."""
     logger.setLevel(getattr(logging, args.log_level))
 
     server_name, tool_map, configs = load_configs(args.configs)
@@ -1266,15 +1266,65 @@ def cmd_run(args) -> None:
     index = ToolIndex.from_configs(configs)
     server = create_server(server_name, tool_map, executor=executor, index=index, classic=is_classic)
 
-    async def run():
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-            await server.run(
-                read_stream,
-                write_stream,
-                server.create_initialization_options(),
-            )
+    transport = getattr(args, "transport", "stdio")
 
-    asyncio.run(run())
+    if transport == "stdio":
+        async def run():
+            async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+                await server.run(
+                    read_stream,
+                    write_stream,
+                    server.create_initialization_options(),
+                )
+
+        asyncio.run(run())
+
+    elif transport == "sse":
+        from mcp.server.sse import SseServerTransport
+        from starlette.applications import Starlette
+        from starlette.routing import Mount, Route
+        import uvicorn
+
+        host = getattr(args, "host", "127.0.0.1")
+        port = getattr(args, "port", 8000)
+        sse = SseServerTransport("/messages/")
+
+        async def handle_sse(request):
+            async with sse.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
+                await server.run(
+                    read_stream,
+                    write_stream,
+                    server.create_initialization_options(),
+                )
+
+        app = Starlette(routes=[
+            Route("/sse", endpoint=handle_sse),
+            Mount("/messages/", app=sse.handle_post_message),
+        ])
+        console.print(f"CLImax SSE server listening on http://{host}:{port}/sse")
+        uvicorn.run(app, host=host, port=port, log_level=args.log_level.lower())
+
+    elif transport == "streamable-http":
+        from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+        from starlette.applications import Starlette
+        from starlette.routing import Mount
+        import uvicorn
+
+        host = getattr(args, "host", "127.0.0.1")
+        port = getattr(args, "port", 8000)
+
+        session_manager = StreamableHTTPSessionManager(app=server)
+
+        async def run():
+            app = Starlette(routes=[
+                Mount("/mcp", app=session_manager.handle_request),
+            ])
+            config = uvicorn.Config(app, host=host, port=port, log_level=args.log_level.lower())
+            uv_server = uvicorn.Server(config)
+            console.print(f"CLImax Streamable HTTP server listening on http://{host}:{port}/mcp")
+            await uv_server.serve()
+
+        asyncio.run(run())
 
 
 # ---------------------------------------------------------------------------
@@ -1295,7 +1345,9 @@ def _build_run_parser(parser=None):
     parser.add_argument("configs", nargs="+", metavar="CONFIG")
     _add_policy_arg(parser)
     parser.add_argument("--classic", action="store_true", default=False, help="Classic mode: register all tools directly")
-    parser.add_argument("--transport", choices=["stdio"], default="stdio", help="MCP transport (default: stdio)")
+    parser.add_argument("--transport", choices=["stdio", "sse", "streamable-http"], default="stdio", help="MCP transport (default: stdio)")
+    parser.add_argument("--host", default="127.0.0.1", help="Host for HTTP transports (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8000, help="Port for HTTP transports (default: 8000)")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="WARNING", help="Logging level")
     return parser
 
