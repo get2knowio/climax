@@ -13,6 +13,7 @@ Instead of writing a custom MCP server for every CLI tool, write a YAML file tha
 - [Discovery Modes](#discovery-modes)
 - [Creating Configs](#creating-configs)
 - [CLI Reference](#cli-reference)
+- [HTTP Transports](#http-transports)
 - [Bundled Configs](#bundled-configs)
 - [Config Reference](#config-reference)
 - [Meta-Tools Reference](#meta-tools-reference)
@@ -238,7 +239,7 @@ CLImax provides four subcommands for working with configs:
 
 ### `climax run` — Start the MCP server
 
-Starts the MCP stdio server. This is what MCP clients connect to. Configs can be referenced by bare name (resolves to bundled configs) or by file path.
+Starts the MCP server. This is what MCP clients connect to. Configs can be referenced by bare name (resolves to bundled configs) or by file path. By default uses stdio transport; see [HTTP Transports](#http-transports) for SSE and Streamable HTTP options.
 
 By default, the server uses [progressive discovery mode](#discovery-modes) — `climax_search` and `climax_call` meta-tools are registered instead of individual CLI tools.
 
@@ -264,7 +265,9 @@ climax --classic git              # use classic mode
 | `--classic` | *(flag)* | disabled | Register all individual tools directly instead of using meta-tools ([progressive discovery](#discovery-modes) is default) |
 | `--policy` | path to YAML | *(none)* | Policy file to restrict tools and constrain arguments |
 | `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `WARNING` | Log verbosity (logs go to stderr) |
-| `--transport` | `stdio` | `stdio` | MCP transport protocol |
+| `--transport` | `stdio`, `sse`, `streamable-http` | `stdio` | MCP transport protocol (see [HTTP Transports](#http-transports)) |
+| `--host` | hostname/IP | `127.0.0.1` | Bind address for HTTP transports |
+| `--port` | integer | `8000` | Port for HTTP transports |
 
 **Environment variables:**
 
@@ -343,6 +346,56 @@ climax skill --install    # install to .claude/commands/climax-config.md
 ```
 
 See [Creating Configs](#creating-configs) for usage details.
+
+## HTTP Transports
+
+By default, CLImax communicates over **stdio** — the standard MCP transport where the client launches the server as a subprocess. For scenarios where you want CLImax running as a standalone HTTP server (remote access, shared servers, debugging), two HTTP transports are available.
+
+Both use the same tool registration, discovery modes, and policies as stdio — only the transport layer changes.
+
+### SSE Transport
+
+Uses Server-Sent Events with two endpoints: `GET /sse` for the event stream and `POST /messages/` for client-to-server messages.
+
+```bash
+climax run git --transport sse
+climax run git --transport sse --host 0.0.0.0 --port 9000
+```
+
+### Streamable HTTP Transport
+
+Uses the newer MCP Streamable HTTP protocol with a single `POST /mcp` endpoint. Supports session management and resumability.
+
+```bash
+climax run git --transport streamable-http
+climax run git --transport streamable-http --host 0.0.0.0 --port 9000
+```
+
+### Request logging
+
+When running in either HTTP mode, all incoming MCP JSON-RPC requests are logged to stdout with color-coded output for easy debugging:
+
+```
+14:32:01  initialize  id=1
+14:32:01  tools/list  id=2  params={}
+14:32:02  tools/call  id=3  git_status  args={"short":true}
+```
+
+### Connecting MCP clients to an HTTP server
+
+For clients that support SSE or HTTP transport, point them at the running server URL instead of launching a subprocess:
+
+```json
+{
+  "mcpServers": {
+    "git": {
+      "url": "http://localhost:8000/sse"
+    }
+  }
+}
+```
+
+For Streamable HTTP, use `http://localhost:8000/mcp` as the URL.
 
 ## Bundled Configs
 
