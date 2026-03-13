@@ -1249,6 +1249,77 @@ def cmd_skill(args, console: Console | None = None) -> int:
     return 0
 
 
+class _RequestLoggingMiddleware:
+    """ASGI middleware that logs MCP JSON-RPC requests to stdout with Rich formatting."""
+
+    # Soft colors: dim timestamp, accent on method/tool, muted params
+    _STYLE_TS = "dim"
+    _STYLE_METHOD = "bold cyan"
+    _STYLE_TOOL = "bold green"
+    _STYLE_ID = "dim"
+    _STYLE_PARAMS = "dim white"
+    _STYLE_WARN = "yellow"
+
+    def __init__(self, app):
+        self.app = app
+        self._out = Console(file=sys.stdout, highlight=False)
+
+    def _log(self, method: str, req_id: Any = "-", **fields: str) -> None:
+        ts = time.strftime("%H:%M:%S")
+        parts = [
+            f"[{self._STYLE_TS}]{ts}[/]",
+            f"[{self._STYLE_METHOD}]{method}[/]",
+            f"[{self._STYLE_ID}]id={req_id}[/]",
+        ]
+        for key, val in fields.items():
+            if key == "tool":
+                parts.append(f"[{self._STYLE_TOOL}]{val}[/]")
+            else:
+                parts.append(f"[{self._STYLE_PARAMS}]{key}={val}[/]")
+        self._out.print("  ".join(parts))
+
+    def _log_warn(self, message: str) -> None:
+        ts = time.strftime("%H:%M:%S")
+        self._out.print(f"[{self._STYLE_TS}]{ts}[/]  [{self._STYLE_WARN}]{message}[/]")
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["method"] == "POST":
+            # Peek at the first receive to capture the body for logging
+            first = await receive()
+            if first["type"] == "http.request":
+                body = first.get("body", b"")
+                try:
+                    payload = json.loads(body)
+                    method = payload.get("method", "?")
+                    params = payload.get("params", {})
+                    req_id = payload.get("id", "-")
+                    if method == "tools/call":
+                        tool_name = params.get("name", "?")
+                        tool_args = json.dumps(params.get("arguments", {}), separators=(",", ":"))
+                        self._log(method, req_id, tool=tool_name, args=tool_args)
+                    elif method in ("initialize", "ping"):
+                        self._log(method, req_id)
+                    else:
+                        self._log(method, req_id, params=json.dumps(params, separators=(",", ":")))
+                except (json.JSONDecodeError, AttributeError):
+                    self._log_warn(f"POST {scope.get('path', '?')} (non-JSON body)")
+
+                # Replay the already-consumed message
+                replayed = False
+
+                async def replay_receive():
+                    nonlocal replayed
+                    if not replayed:
+                        replayed = True
+                        return first
+                    return await receive()
+
+                await self.app(scope, replay_receive, send)
+                return
+
+        await self.app(scope, receive, send)
+
+
 def cmd_run(args) -> None:
     """Start the MCP server."""
     logger.setLevel(getattr(logging, args.log_level))
@@ -1297,10 +1368,11 @@ def cmd_run(args) -> None:
                     server.create_initialization_options(),
                 )
 
-        app = Starlette(routes=[
+        starlette_app = Starlette(routes=[
             Route("/sse", endpoint=handle_sse),
             Mount("/messages/", app=sse.handle_post_message),
         ])
+        app = _RequestLoggingMiddleware(starlette_app)
         console.print(f"CLImax SSE server listening on http://{host}:{port}/sse")
         uvicorn.run(app, host=host, port=port, log_level=args.log_level.lower())
 
@@ -1316,9 +1388,10 @@ def cmd_run(args) -> None:
         session_manager = StreamableHTTPSessionManager(app=server)
 
         async def run():
-            app = Starlette(routes=[
+            starlette_app = Starlette(routes=[
                 Mount("/mcp", app=session_manager.handle_request),
             ])
+            app = _RequestLoggingMiddleware(starlette_app)
             config = uvicorn.Config(app, host=host, port=port, log_level=args.log_level.lower())
             uv_server = uvicorn.Server(config)
             console.print(f"CLImax Streamable HTTP server listening on http://{host}:{port}/mcp")
