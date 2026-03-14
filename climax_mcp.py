@@ -1320,11 +1320,49 @@ class _RequestLoggingMiddleware:
         await self.app(scope, receive, send)
 
 
+def _resolve_run_configs(args) -> list[str]:
+    """Resolve bundled names + --config paths into a config path list.
+
+    Raises SystemExit with a helpful message if no configs are specified
+    or if a bundled name is not recognized.
+    """
+    bundled_names = getattr(args, "bundled", None) or []
+    config_files = getattr(args, "config", None) or []
+
+    # Also support legacy args.configs for backward compat with tests
+    if not bundled_names and not config_files and hasattr(args, "configs"):
+        return args.configs
+
+    if not bundled_names and not config_files:
+        available = _available_bundled()
+        console.print("[red]No configs specified.[/red] Provide bundled names and/or --config paths.\n")
+        console.print("[bold]Available bundled configs:[/bold]")
+        for name in available:
+            console.print(f"  {name}")
+        console.print(f"\n[dim]Example: climax run {available[0]}[/dim]")
+        sys.exit(1)
+
+    # Validate bundled names
+    available = _available_bundled()
+    resolved: list[str] = []
+    for name in bundled_names:
+        if name not in available:
+            console.print(
+                f"[red]Unknown bundled config:[/red] '{name}'\n"
+                f"[bold]Available:[/bold] {', '.join(available)}"
+            )
+            sys.exit(1)
+        resolved.append(name)
+
+    resolved.extend(config_files)
+    return resolved
+
+
 def cmd_run(args) -> None:
     """Start the MCP server."""
     logger.setLevel(getattr(logging, args.log_level))
 
-    server_name, tool_map, configs = load_configs(args.configs)
+    server_name, tool_map, configs = load_configs(_resolve_run_configs(args))
 
     executor = None
     policy_path = getattr(args, "policy", None)
@@ -1409,13 +1447,19 @@ def _add_policy_arg(parser):
     parser.add_argument("--policy", metavar="POLICY", default=None, help="Policy YAML file")
 
 
+def _available_bundled() -> list[str]:
+    """Return sorted list of available bundled config names."""
+    return sorted(p.stem for p in CONFIGS_DIR.glob("*.yaml"))
+
+
 def _build_run_parser(parser=None):
     """Build the 'run' argument parser (reused for backward compat)."""
     import argparse
 
     if parser is None:
         parser = argparse.ArgumentParser()
-    parser.add_argument("configs", nargs="+", metavar="CONFIG")
+    parser.add_argument("bundled", nargs="*", metavar="NAME", help="Bundled config names (e.g. git, docker, obsidian)")
+    parser.add_argument("--config", action="append", default=[], metavar="FILE", help="Custom config file path(s) — can be repeated")
     _add_policy_arg(parser)
     parser.add_argument("--classic", action="store_true", default=False, help="Classic mode: register all tools directly")
     parser.add_argument("--transport", choices=["stdio", "sse", "streamable-http"], default="stdio", help="MCP transport (default: stdio)")
@@ -1435,7 +1479,7 @@ def main():
     first_positional = next((a for a in argv if not a.startswith("-")), None)
 
     if first_positional not in SUBCOMMANDS:
-        # Backward compat: climax config.yaml [--log-level ...]
+        # Shorthand: climax git [--transport sse ...]  →  climax run git [...]
         run_parser = _build_run_parser()
         args = run_parser.parse_args(argv)
         cmd_run(args)

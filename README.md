@@ -90,8 +90,11 @@ climax --policy my-project.policy.yaml git
 # Enable logging to see commands being executed
 climax git --log-level INFO
 
-# Use a custom config file (path or .yaml extension)
-climax my-config.yaml
+# Use a custom config file
+climax --config my-config.yaml
+
+# Mix bundled configs with custom config files
+climax git --config my-config.yaml
 ```
 
 CLImax ships with ready-to-use configs for git, docker, claude, and obsidian — see [`configs/README.md`](configs/README.md) for details on each config, including available tools and environment variables.
@@ -120,7 +123,7 @@ Add a CLImax server to your MCP client's config file. The JSON structure is the 
 }
 ```
 
-Run `climax list` to see available [bundled config](#bundled-configs) names. Custom config files work too — pass a path instead of a name.
+Run `climax list` to see available [bundled config](#bundled-configs) names. Custom config files work too — use `--config`.
 
 By default, MCP clients will see two meta-tools (`climax_search` and `climax_call`) for on-demand tool discovery. See [Discovery Modes](#discovery-modes) for details.
 
@@ -133,7 +136,8 @@ Change the `"args"` array to customize behavior:
 | Classic mode (all tools directly) | `["--classic", "git"]` |
 | Multiple CLIs in one server | `["git", "docker"]` |
 | With a policy file | `["--policy", "/path/to/policy.yaml", "git"]` |
-| Custom config file | `["/path/to/my-config.yaml"]` |
+| Custom config file | `["--config", "/path/to/my-config.yaml"]` |
+| Mixed bundled + custom | `["git", "--config", "/path/to/my-config.yaml"]` |
 
 To run without installing, use `uvx` as the command:
 
@@ -239,29 +243,34 @@ CLImax provides four subcommands for working with configs:
 
 ### `climax run` — Start the MCP server
 
-Starts the MCP server. This is what MCP clients connect to. Configs can be referenced by bare name (resolves to bundled configs) or by file path. By default uses stdio transport; see [HTTP Transports](#http-transports) for SSE and Streamable HTTP options.
+Starts the MCP server. This is what MCP clients connect to. Bundled configs are specified as positional arguments by name; custom config files use `--config`. By default uses stdio transport; see [HTTP Transports](#http-transports) for SSE and Streamable HTTP options.
 
 By default, the server uses [progressive discovery mode](#discovery-modes) — `climax_search` and `climax_call` meta-tools are registered instead of individual CLI tools.
 
 ```bash
-climax run git
-climax run git docker --log-level INFO
-climax run --policy readonly.policy.yaml git
-climax run --classic git                    # use classic mode instead
+climax run git                                    # bundled config
+climax run git docker --log-level INFO            # multiple bundled
+climax run --config my-tools.yaml                 # custom config file
+climax run git --config my-tools.yaml             # mixed
+climax run --policy readonly.policy.yaml git      # with policy
+climax run --classic git                          # classic mode
 ```
 
-For backward compatibility, you can omit `run`:
+For convenience, you can omit `run`:
 
 ```bash
 climax git                        # equivalent to: climax run git
-climax --policy policy.yaml git
-climax --classic git              # use classic mode
+climax git docker
+climax --config my-tools.yaml
 ```
+
+At least one bundled name or `--config` path must be provided. Run `climax run` with no arguments to see available bundled configs.
 
 **Options:**
 
 | Flag | Values | Default | Description |
 |------|--------|---------|-------------|
+| `--config` | path to YAML | *(none)* | Custom config file path (can be repeated) |
 | `--classic` | *(flag)* | disabled | Register all individual tools directly instead of using meta-tools ([progressive discovery](#discovery-modes) is default) |
 | `--policy` | path to YAML | *(none)* | Policy file to restrict tools and constrain arguments |
 | `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `WARNING` | Log verbosity (logs go to stderr) |

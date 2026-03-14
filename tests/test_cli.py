@@ -215,19 +215,28 @@ class TestBundledNameResolution:
 
 
 class TestBackwardCompat:
-    def test_no_subcommand_runs_as_run(self, valid_yaml):
-        """climax config.yaml should work the same as climax run config.yaml."""
+    def test_no_subcommand_bundled_name(self):
+        """climax git should work the same as climax run git."""
         with patch("climax_mcp.cmd_run") as mock_run:
-            with patch("sys.argv", ["climax", str(valid_yaml)]):
+            with patch("sys.argv", ["climax", "git"]):
                 main()
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
-            assert str(valid_yaml) in args.configs
+            assert "git" in args.bundled
 
-    def test_no_subcommand_with_log_level(self, valid_yaml):
-        """climax config.yaml --log-level DEBUG should still work."""
+    def test_no_subcommand_with_config_flag(self, valid_yaml):
+        """climax --config file.yaml should work the same as climax run --config file.yaml."""
         with patch("climax_mcp.cmd_run") as mock_run:
-            with patch("sys.argv", ["climax", str(valid_yaml), "--log-level", "DEBUG"]):
+            with patch("sys.argv", ["climax", "--config", str(valid_yaml)]):
+                main()
+            mock_run.assert_called_once()
+            args = mock_run.call_args[0][0]
+            assert str(valid_yaml) in args.config
+
+    def test_no_subcommand_with_log_level(self):
+        """climax git --log-level DEBUG should still work."""
+        with patch("climax_mcp.cmd_run") as mock_run:
+            with patch("sys.argv", ["climax", "git", "--log-level", "DEBUG"]):
                 main()
             args = mock_run.call_args[0][0]
             assert args.log_level == "DEBUG"
@@ -414,7 +423,8 @@ class TestCmdListPolicy:
         """--policy with backward compat run mode."""
         with patch("climax_mcp.cmd_run") as mock_run:
             with patch("sys.argv", [
-                "climax", "--policy", str(minimal_policy_yaml), str(valid_yaml),
+                "climax", "--policy", str(minimal_policy_yaml),
+                "--config", str(valid_yaml),
             ]):
                 main()
             mock_run.assert_called_once()
@@ -522,10 +532,10 @@ class TestMainSubcommands:
             assert exc_info.value.code == 0
             mock_list.assert_called_once()
 
-    def test_main_run_subcommand(self, valid_yaml):
+    def test_main_run_subcommand(self):
         """main() with 'run' dispatches to cmd_run."""
         with patch("climax_mcp.cmd_run") as mock_run:
-            with patch("sys.argv", ["climax", "run", str(valid_yaml)]):
+            with patch("sys.argv", ["climax", "run", "git"]):
                 main()
             mock_run.assert_called_once()
 
