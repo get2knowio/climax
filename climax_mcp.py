@@ -981,13 +981,14 @@ def create_server(
             if stderr.strip():
                 logger.debug("stderr: %s", stderr.strip()[:200])
 
-        # Build response
+        # Build response — only include stderr on failure to avoid
+        # noisy warnings (e.g. Obsidian CLI) confusing the agent
         parts = []
         if stdout.strip():
             parts.append(stdout.strip())
-        if stderr.strip():
-            parts.append(f"[stderr]\n{stderr.strip()}")
         if returncode != 0:
+            if stderr.strip():
+                parts.append(f"[stderr]\n{stderr.strip()}")
             parts.append(f"[exit code: {returncode}]")
 
         text = "\n\n".join(parts) if parts else "(no output)"

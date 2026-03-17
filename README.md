@@ -1,8 +1,8 @@
 # CLImax
 
-Expose **any CLI** as MCP tools via a YAML configuration file.
+Turn **any CLI** into [MCP](https://modelcontextprotocol.io/) tools with a YAML config. No custom server code — describe the interface, CLImax does the rest.
 
-Instead of writing a custom MCP server for every CLI tool, write a YAML file that describes the CLI's interface and CLImax does the rest.
+Progressive discovery keeps token overhead constant regardless of how many tools you wire up. Policy files separate what tools exist from what's allowed. Stdio, SSE, and Streamable HTTP transports are all supported.
 
 ## Contents
 
@@ -51,11 +51,15 @@ Optionally, a **policy file** controls which tools are enabled, constrains argum
 ### With uv (recommended)
 
 ```bash
-# Install as a CLI tool (adds `climax` to PATH)
+# Install as a CLI tool
 uv tool install climax-mcp
 
-# Or run directly without installing
-uvx --from climax-mcp climax list
+# Now use the `climax` command
+climax list
+climax git
+
+# Or run directly without installing (use `climax-mcp` as the command)
+uvx climax-mcp list
 ```
 
 ### With pip
@@ -184,7 +188,7 @@ If you prefer all tools registered directly in the MCP response, use the `--clas
 climax --classic git docker
 ```
 
-In classic mode, `tools/list` returns all individual tools directly. Meta-tools (`climax_search` and `climax_call`) are not registered. This matches the behavior of versions prior to `002-mcp-meta-tools`.
+In classic mode, `tools/list` returns all individual tools directly. Meta-tools (`climax_search` and `climax_call`) are not registered. This matches the behavior of versions prior to v0.2.0.
 
 ## Creating Configs
 

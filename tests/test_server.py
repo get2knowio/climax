@@ -135,7 +135,7 @@ class TestMCPServer:
 
         assert "ok" in result.content[0].text
 
-    async def test_call_tool_stderr_formatting(self):
+    async def test_call_tool_stderr_suppressed_on_success(self):
         tool_map = _build_tool_map()
         server = create_server("test", tool_map)
 
@@ -151,8 +151,28 @@ class TestMCPServer:
 
         text = result.content[0].text
         assert "output" in text
+        assert "[stderr]" not in text
+        assert "warning msg" not in text
+
+    async def test_call_tool_stderr_included_on_failure(self):
+        tool_map = _build_tool_map()
+        server = create_server("test", tool_map)
+
+        with patch("climax_mcp.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = (1, "output\n", "error msg\n")
+
+            handlers = server.request_handlers
+            request = types.CallToolRequest(
+                method="tools/call",
+                params=types.CallToolRequestParams(name="status", arguments={}),
+            )
+            result = _unwrap(await handlers[types.CallToolRequest](request))
+
+        text = result.content[0].text
+        assert "output" in text
         assert "[stderr]" in text
-        assert "warning msg" in text
+        assert "error msg" in text
+        assert "[exit code: 1]" in text
 
     async def test_call_tool_no_output(self):
         tool_map = _build_tool_map()

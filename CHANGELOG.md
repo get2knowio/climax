@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 — 2026-03-16
+
+### Highlights
+
+- **HTTP transports** — Run CLImax as a standalone HTTP server with SSE (`--transport sse`) or Streamable HTTP (`--transport streamable-http`) in addition to the default stdio transport. Same tool registration, discovery modes, and policies apply regardless of transport.
+- **Rich request logging** — All incoming MCP requests in HTTP mode are logged to stdout with color-coded, Rich-formatted output showing method, ID, tool name, and arguments.
+- **Bundled configs as positional args** — Bundled config names (`git`, `docker`, etc.) are now first-class positional arguments. Custom config files use `--config`. Mix both freely: `climax git --config my-tools.yaml`.
+
+### Breaking changes
+
+- Custom config file paths must now use `--config <path>` instead of being passed as bare positional arguments. Bundled config names (`git`, `docker`, `claude`, `obsidian`) continue to work as positional args.
+
 ## 0.2.0 — 2026-02-22
 
 Initial public release on PyPI as `climax-mcp`.
