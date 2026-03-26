@@ -72,6 +72,7 @@ tools:
 
   - name: git_add
     description: "Stage files for the next commit"
+    risk: write
     command: add
     args:
       - name: path
@@ -82,6 +83,8 @@ tools:
 
   - name: git_commit
     description: "Record changes to the repository"
+    risk: write
+    confirm_message: "Commit changes?"
     command: commit
     args:
       - name: message

@@ -135,6 +135,7 @@ tools:
 
   - name: obsidian_create
     description: "Create a new note in the vault with optional initial content or template"
+    risk: write
     command: create
     timeout: 120
     args:
@@ -165,6 +166,7 @@ tools:
 
   - name: obsidian_write
     description: "Replace the full contents of an existing note — read it first with obsidian_read, modify the content, then write it back. This is the way to edit content in the middle of a note."
+    risk: write
     command: create
     timeout: 120
     args:
@@ -189,6 +191,7 @@ tools:
 
   - name: obsidian_append
     description: "Append content to the end of an existing note — great for adding to logs, journals, or running lists"
+    risk: write
     command: append
     timeout: 120
     args:
@@ -212,6 +215,7 @@ tools:
 
   - name: obsidian_prepend
     description: "Prepend content to the beginning of an existing note — useful for adding headers or top-of-file summaries"
+    risk: write
     command: prepend
     timeout: 120
     args:
@@ -235,6 +239,7 @@ tools:
 
   - name: obsidian_move
     description: "Move or rename a file to a new location in the vault — Obsidian updates all internal links automatically"
+    risk: write
     command: move
     args:
       - name: file
@@ -253,6 +258,7 @@ tools:
 
   - name: obsidian_rename
     description: "Rename a file — Obsidian updates all internal links automatically"
+    risk: write
     command: rename
     args:
       - name: file
@@ -271,6 +277,8 @@ tools:
 
   - name: obsidian_delete
     description: "Delete a file from the vault. Moves to trash by default."
+    risk: destructive
+    confirm_message: "Delete this file from the vault?"
     command: delete
     args:
       - name: file
@@ -619,6 +627,7 @@ tools:
 
   - name: obsidian_property_set
     description: "Set a frontmatter property on a note — creates the property if it doesn't exist"
+    risk: write
     command: "property:set"
     args:
       - name: name
@@ -647,6 +656,8 @@ tools:
 
   - name: obsidian_property_remove
     description: "Remove a frontmatter property from a note"
+    risk: destructive
+    confirm_message: "Remove this property from the note?"
     command: "property:remove"
     args:
       - name: name
@@ -703,6 +714,7 @@ tools:
 
   - name: obsidian_task
     description: "Toggle or update a specific task's status by file and line number"
+    risk: write
     command: task
     args:
       - name: file
@@ -743,6 +755,7 @@ tools:
 
   - name: obsidian_daily_append
     description: "Append content to today's daily note — useful for logging, journaling, or capturing quick thoughts"
+    risk: write
     command: "daily:append"
     timeout: 120
     args:
@@ -758,6 +771,7 @@ tools:
 
   - name: obsidian_daily_prepend
     description: "Prepend content to today's daily note"
+    risk: write
     command: "daily:prepend"
     timeout: 120
     args:
@@ -794,6 +808,7 @@ tools:
 
   - name: obsidian_bookmark
     description: "Add a bookmark — can bookmark a file, folder, search query, or URL"
+    risk: write
     command: bookmark
     args:
       - name: file
@@ -933,6 +948,7 @@ tools:
 
   - name: obsidian_command
     description: "Execute an Obsidian command by its ID — use obsidian_commands to discover available IDs first"
+    risk: write
     command: command
     args:
       - name: id

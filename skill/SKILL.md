@@ -67,6 +67,14 @@ tools:
     description: "<what and why>"     # Explain WHEN and WHY to use this, not just what
     command: "<subcommand>"           # Appended to base command (can be multi-word)
     timeout: 30                      # Optional: seconds before killing (default 30)
+    risk: read                       # Optional: read (default) | write | destructive
+    confirm_message: "Delete {path}?" # Optional: approval dialog template (uses arg names)
+    resolve:                         # Optional: resolve opaque IDs for confirm_message
+      _friendly_name:                # Variable name available in confirm_message
+        command: "describe-thing"    # Subcommand (inherits base command)
+        args:                        # Arg templates using {arg_name} from tool args
+          id: "{thing_id}"
+        timeout: 10                  # Short timeout (default 10s)
 
     # --- Arguments (ToolArg) ---
     args:                            # Optional — omit entirely for no-arg commands
@@ -116,10 +124,12 @@ tools:
 19. Use `default` for sensible defaults that save the LLM from always specifying them (e.g. `default: 10` for log limits)
 20. Don't mark everything required — let the LLM call tools with minimal args
 
-### Safety
+### Safety & Risk Levels
 21. Never expose args that allow arbitrary shell execution (e.g. `--exec`, `--command`)
-22. Flag destructive tools in the description
-23. Prefer read-only tool sets for untrusted environments
+22. Set `risk: write` for tools that modify state; `risk: destructive` for irreversible operations
+23. Add `confirm_message` to destructive tools with a clear description of what will happen
+24. Use `resolve` blocks when tool arguments contain opaque IDs that need human-readable context in the approval dialog
+25. Prefer read-only tool sets for untrusted environments
 
 ## Patterns and Examples
 
@@ -215,7 +225,9 @@ After generating a config, mentally verify:
 - [ ] Flag args have an explicit `flag` or a name that auto-converts cleanly (underscores → hyphens)
 - [ ] Descriptions explain when/why, not just what
 - [ ] No interactive or TTY-dependent commands are exposed
-- [ ] Destructive commands are flagged in their description
+- [ ] Destructive tools have `risk: destructive` and a `confirm_message`
+- [ ] Write tools have `risk: write`
+- [ ] `resolve` blocks reference valid argument names in their templates
 
 ## Output
 

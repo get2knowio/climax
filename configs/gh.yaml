@@ -161,6 +161,8 @@ tools:
 
   - name: gh_pr_create
     description: "⚠️ WRITE: Create a new pull request. Always provide --title and --body to avoid interactive prompts."
+    risk: write
+    confirm_message: "Create PR: {title}?"
     command: pr create
     timeout: 60
     args:
@@ -209,6 +211,7 @@ tools:
 
   - name: gh_pr_edit
     description: "⚠️ WRITE: Edit a pull request — update title, body, labels, assignees, reviewers, or milestone."
+    risk: write
     command: pr edit
     args:
       - name: number
@@ -252,6 +255,7 @@ tools:
 
   - name: gh_pr_comment
     description: "⚠️ WRITE: Add a comment to a pull request."
+    risk: write
     command: pr comment
     args:
       - name: number
@@ -271,6 +275,7 @@ tools:
 
   - name: gh_pr_review
     description: "⚠️ WRITE: Submit a review on a pull request — approve, request changes, or leave a comment."
+    risk: write
     command: pr review
     args:
       - name: number
@@ -302,6 +307,8 @@ tools:
 
   - name: gh_pr_merge
     description: "⚠️ WRITE: Merge a pull request. Specify a merge strategy (--merge, --squash, or --rebase) to avoid interactive prompts."
+    risk: destructive
+    confirm_message: "Merge PR {number}?"
     command: pr merge
     timeout: 60
     args:
@@ -345,6 +352,8 @@ tools:
 
   - name: gh_pr_close
     description: "⚠️ WRITE: Close a pull request without merging."
+    risk: destructive
+    confirm_message: "Close PR {number}?"
     command: pr close
     args:
       - name: number
@@ -367,6 +376,7 @@ tools:
 
   - name: gh_pr_reopen
     description: "⚠️ WRITE: Reopen a previously closed pull request."
+    risk: write
     command: pr reopen
     args:
       - name: number
@@ -385,6 +395,7 @@ tools:
 
   - name: gh_pr_ready
     description: "⚠️ WRITE: Mark a draft PR as ready for review, or use --undo to convert back to draft."
+    risk: write
     command: pr ready
     args:
       - name: number
@@ -498,6 +509,8 @@ tools:
 
   - name: gh_issue_create
     description: "⚠️ WRITE: Create a new issue. Always provide --title and --body to avoid interactive prompts."
+    risk: write
+    confirm_message: "Create issue: {title}?"
     command: issue create
     timeout: 60
     args:
@@ -534,6 +547,7 @@ tools:
 
   - name: gh_issue_edit
     description: "⚠️ WRITE: Edit an issue — update title, body, labels, assignees, or milestone."
+    risk: write
     command: issue edit
     args:
       - name: number
@@ -573,6 +587,7 @@ tools:
 
   - name: gh_issue_comment
     description: "⚠️ WRITE: Add a comment to an issue."
+    risk: write
     command: issue comment
     args:
       - name: number
@@ -592,6 +607,8 @@ tools:
 
   - name: gh_issue_close
     description: "⚠️ WRITE: Close an issue."
+    risk: destructive
+    confirm_message: "Close issue {number}?"
     command: issue close
     args:
       - name: number
@@ -615,6 +632,7 @@ tools:
 
   - name: gh_issue_reopen
     description: "⚠️ WRITE: Reopen a previously closed issue."
+    risk: write
     command: issue reopen
     args:
       - name: number
@@ -695,6 +713,8 @@ tools:
 
   - name: gh_repo_create
     description: "⚠️ WRITE: Create a new GitHub repository. Must specify visibility (--public, --private, or --internal)."
+    risk: write
+    confirm_message: "Create repository {name}?"
     command: repo create
     timeout: 60
     args:
@@ -734,6 +754,7 @@ tools:
 
   - name: gh_repo_edit
     description: "⚠️ WRITE: Edit repository settings — description, homepage, default branch, feature toggles."
+    risk: write
     command: repo edit
     args:
       - name: repository
@@ -855,6 +876,7 @@ tools:
 
   - name: gh_run_rerun
     description: "⚠️ WRITE: Re-run a workflow run. Use --failed to re-run only the failed jobs."
+    risk: write
     command: run rerun
     timeout: 60
     args:
@@ -878,6 +900,7 @@ tools:
 
   - name: gh_run_cancel
     description: "⚠️ WRITE: Cancel a workflow run that is in progress."
+    risk: write
     command: run cancel
     args:
       - name: run_id
@@ -972,6 +995,8 @@ tools:
 
   - name: gh_release_create
     description: "⚠️ WRITE: Create a new release. Provide --title and --notes (or --generate-notes) to avoid interactive prompts."
+    risk: write
+    confirm_message: "Create release {tag}?"
     command: release create
     timeout: 120
     args:
@@ -1265,6 +1290,7 @@ tools:
 
   - name: gh_gist_create
     description: "⚠️ WRITE: Create a new gist from file content."
+    risk: write
     command: gist create
     timeout: 60
     args:
@@ -1369,6 +1395,8 @@ tools:
 
   - name: gh_secret_set
     description: "⚠️ WRITE: Set a secret for a repository, environment, or organization. Value is encrypted before upload."
+    risk: write
+    confirm_message: "Set secret {secret_name}?"
     command: secret set
     timeout: 60
     args:
@@ -1462,6 +1490,7 @@ tools:
 
   - name: gh_variable_set
     description: "⚠️ WRITE: Set an Actions variable for a repository, environment, or organization."
+    risk: write
     command: variable set
     args:
       - name: variable_name

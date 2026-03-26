@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import os
+import platform
 import re
 import shutil
 import sys
@@ -71,6 +72,12 @@ class ArgType(str, Enum):
     boolean = "boolean"
 
 
+class RiskLevel(str, Enum):
+    read = "read"
+    write = "write"
+    destructive = "destructive"
+
+
 class ToolArg(BaseModel):
     """A single argument for a CLI tool."""
     name: str
@@ -85,6 +92,13 @@ class ToolArg(BaseModel):
     enum: list[str] | None = None    # restrict to specific values
 
 
+class ResolveConfig(BaseModel):
+    """Resolve an opaque argument value to a human-readable string for approval dialogs."""
+    command: str                     # subcommand to run (inherits base command)
+    args: dict[str, str] = Field(default_factory=dict)  # arg templates using {arg_name}
+    timeout: float = 10.0            # short timeout — must not block long
+
+
 class ToolDef(BaseModel):
     """A single tool that maps to a CLI subcommand."""
     name: str
@@ -92,6 +106,9 @@ class ToolDef(BaseModel):
     command: str = ""                # subcommand(s) appended to base, e.g. "users list"
     args: list[ToolArg] = Field(default_factory=list)
     timeout: float | None = None     # per-tool timeout in seconds (overrides default 30s)
+    risk: RiskLevel = RiskLevel.read  # risk level: read (default), write, or destructive
+    confirm_message: str | None = None  # approval dialog template, e.g. "Delete {path}?"
+    resolve: dict[str, ResolveConfig] = Field(default_factory=dict)  # resolve opaque IDs
 
 
 class CLImaxConfig(BaseModel):
@@ -134,9 +151,10 @@ class ArgConstraint(BaseModel):
 
 
 class ToolPolicy(BaseModel):
-    """Per-tool policy: description override and arg constraints."""
+    """Per-tool policy: description override, arg constraints, and approval override."""
     description: str | None = None
     args: dict[str, ArgConstraint] = Field(default_factory=dict)
+    require_approval: bool | None = None  # None = defer to global, True/False = override
 
 
 class ExecutorType(str, Enum):
@@ -162,11 +180,33 @@ class DefaultPolicy(str, Enum):
     disabled = "disabled"
 
 
+class ApprovalLevel(str, Enum):
+    none = "none"                  # never require approval
+    destructive = "destructive"    # only destructive tools
+    write = "write"                # write + destructive
+    all = "all"                    # every tool call
+
+
+class HeadlessPolicy(str, Enum):
+    deny = "deny"                  # deny if no GUI/TTY available (fail-safe)
+    approve = "approve"            # auto-approve if no GUI/TTY (for CI/automation)
+
+
+class ApprovalConfig(BaseModel):
+    """Global and per-tool approval policy."""
+    model_config = ConfigDict(populate_by_name=True)
+
+    global_level: ApprovalLevel = Field(default=ApprovalLevel.write, alias="global")
+    headless: HeadlessPolicy = HeadlessPolicy.deny
+    tools: dict[str, bool] = Field(default_factory=dict)  # per-tool override
+
+
 class PolicyConfig(BaseModel):
     """Top-level policy configuration."""
     executor: ExecutorConfig = Field(default_factory=ExecutorConfig)
     default: DefaultPolicy = DefaultPolicy.disabled
     tools: dict[str, ToolPolicy] = Field(default_factory=dict)
+    approval: ApprovalConfig = Field(default_factory=ApprovalConfig)
 
 
 # ---------------------------------------------------------------------------
@@ -823,6 +863,214 @@ async def run_command(
 
 
 # ---------------------------------------------------------------------------
+# Approval dialogs
+# ---------------------------------------------------------------------------
+
+def _requires_approval(
+    tool_def: ToolDef,
+    approval_config: ApprovalConfig | None,
+    tool_policy: ToolPolicy | None,
+) -> bool:
+    """Determine if a tool call requires user approval."""
+    if approval_config is None:
+        return False
+
+    # Per-tool override in ToolPolicy takes highest precedence
+    if tool_policy is not None and tool_policy.require_approval is not None:
+        return tool_policy.require_approval
+
+    # Per-tool override in approval.tools
+    if tool_def.name in approval_config.tools:
+        return approval_config.tools[tool_def.name]
+
+    # Fall back to global level
+    level = approval_config.global_level
+    if level == ApprovalLevel.none:
+        return False
+    if level == ApprovalLevel.all:
+        return True
+    if level == ApprovalLevel.destructive:
+        return tool_def.risk == RiskLevel.destructive
+    if level == ApprovalLevel.write:
+        return tool_def.risk in (RiskLevel.write, RiskLevel.destructive)
+
+    return False
+
+
+async def _run_resolves(
+    tool_def: ToolDef,
+    arguments: dict[str, Any],
+    base_command: str,
+    env: dict[str, str] | None = None,
+    working_dir: str | None = None,
+) -> dict[str, str]:
+    """Run resolve commands and return {var_name: resolved_value} dict."""
+    resolved_vars: dict[str, str] = {}
+
+    for var_name, resolve_cfg in tool_def.resolve.items():
+        # Build the resolve command using the base command + resolve subcommand
+        cmd_parts = os.path.expandvars(os.path.expanduser(base_command)).split()
+        if resolve_cfg.command:
+            cmd_parts.extend(resolve_cfg.command.split())
+
+        # Substitute argument values into resolve args and add as flags
+        for arg_name, arg_template in resolve_cfg.args.items():
+            try:
+                value = arg_template.format_map(arguments)
+            except KeyError:
+                continue
+            flag = f"--{arg_name.replace('_', '-')}"
+            cmd_parts.extend([flag, value])
+
+        returncode, stdout, stderr = await run_command(
+            cmd_parts,
+            env=env,
+            working_dir=working_dir,
+            timeout=resolve_cfg.timeout,
+        )
+
+        if returncode == 0 and stdout.strip():
+            resolved_vars[var_name] = stdout.strip()
+        else:
+            resolved_vars[var_name] = f"<unresolved:{var_name}>"
+            logger.warning(
+                "Resolve for %s failed (exit %d): %s",
+                var_name, returncode, stderr.strip()[:100],
+            )
+
+    return resolved_vars
+
+
+async def _show_approval_dialog(
+    message: str,
+    headless: HeadlessPolicy = HeadlessPolicy.deny,
+) -> bool:
+    """Show a native confirmation dialog. Returns True if approved."""
+    system = platform.system()
+
+    if system == "Darwin":
+        result = await _dialog_macos(message)
+        if result is not None:
+            return result
+    elif system == "Linux":
+        result = await _dialog_linux(message)
+        if result is not None:
+            return result
+    elif system == "Windows":
+        result = await _dialog_windows(message)
+        if result is not None:
+            return result
+
+    return await _dialog_terminal(message, headless)
+
+
+async def _dialog_macos(message: str) -> bool | None:
+    """macOS native dialog via osascript. Returns None if osascript unavailable."""
+    escaped = message.replace("\\", "\\\\").replace('"', '\\"')
+    script = (
+        f'display dialog "{escaped}" '
+        f'buttons {{"Deny", "Approve"}} default button "Deny" '
+        f'with title "CLImax Approval"'
+    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "osascript", "-e", script,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=120.0)
+        # osascript returns non-zero if user clicks Cancel/Deny
+        if proc.returncode != 0:
+            return False
+        return "Approve" in stdout.decode()
+    except (asyncio.TimeoutError, FileNotFoundError, OSError):
+        return None
+
+
+async def _dialog_linux(message: str) -> bool | None:
+    """Linux dialog via zenity or kdialog. Returns None if neither available."""
+    import shutil
+    if shutil.which("zenity"):
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "zenity", "--question", "--title=CLImax Approval",
+                f"--text={message}", "--ok-label=Approve", "--cancel-label=Deny",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await asyncio.wait_for(proc.communicate(), timeout=120.0)
+            return proc.returncode == 0
+        except (asyncio.TimeoutError, OSError):
+            pass
+
+    if shutil.which("kdialog"):
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "kdialog", "--title", "CLImax Approval",
+                "--yesno", message, "--yes-label", "Approve", "--no-label", "Deny",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await asyncio.wait_for(proc.communicate(), timeout=120.0)
+            return proc.returncode == 0
+        except (asyncio.TimeoutError, OSError):
+            pass
+
+    return None
+
+
+async def _dialog_windows(message: str) -> bool | None:
+    """Windows dialog via PowerShell. Returns None if PowerShell unavailable."""
+    escaped = message.replace("'", "''")
+    ps_script = (
+        "Add-Type -AssemblyName System.Windows.Forms; "
+        f"$result = [System.Windows.Forms.MessageBox]::Show('{escaped}', 'CLImax Approval', "
+        "[System.Windows.Forms.MessageBoxButtons]::YesNo, "
+        "[System.Windows.Forms.MessageBoxIcon]::Warning); "
+        "if ($result -eq 'Yes') { exit 0 } else { exit 1 }"
+    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "powershell", "-NoProfile", "-Command", ps_script,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await asyncio.wait_for(proc.communicate(), timeout=120.0)
+        return proc.returncode == 0
+    except (asyncio.TimeoutError, FileNotFoundError, OSError):
+        return None
+
+
+async def _dialog_terminal(
+    message: str,
+    headless: HeadlessPolicy = HeadlessPolicy.deny,
+) -> bool:
+    """Prompt on stderr, read from /dev/tty (bypasses MCP's stdin)."""
+    import sys
+
+    def _prompt() -> bool:
+        sys.stderr.write(f"\n{'=' * 60}\n")
+        sys.stderr.write("CLImax Approval Required\n")
+        sys.stderr.write(f"{'=' * 60}\n")
+        sys.stderr.write(f"{message}\n\n")
+        sys.stderr.write("Approve? [y/N] ")
+        sys.stderr.flush()
+        try:
+            with open("/dev/tty", "r") as tty:
+                answer = tty.readline().strip().lower()
+        except OSError:
+            sys.stderr.write("(no TTY available, auto-")
+            if headless == HeadlessPolicy.approve:
+                sys.stderr.write("approving)\n")
+                return True
+            sys.stderr.write("denying)\n")
+            return False
+        return answer in ("y", "yes")
+
+    return await asyncio.to_thread(_prompt)
+
+
+# ---------------------------------------------------------------------------
 # MCP Server
 # ---------------------------------------------------------------------------
 
@@ -832,6 +1080,7 @@ def create_server(
     executor: ExecutorConfig | None = None,
     index: "ToolIndex | None" = None,
     classic: bool = False,
+    policy: PolicyConfig | None = None,
 ) -> Server:
     """Create and configure the MCP server from resolved tools."""
 
@@ -955,6 +1204,38 @@ def create_server(
 
         logger.info("▶ %s", cmd_display)
         logger.debug("▶ full command: %s", cmd_str)
+
+        # --- Approval check ---
+        if policy is not None:
+            tool_policy_entry = policy.tools.get(resolved.tool.name)
+            if _requires_approval(resolved.tool, policy.approval, tool_policy_entry):
+                # Build confirmation message
+                if resolved.tool.confirm_message:
+                    template_vars: dict[str, Any] = dict(arguments)
+                    if resolved.tool.resolve:
+                        resolved_vars = await _run_resolves(
+                            resolved.tool, arguments,
+                            resolved.base_command, resolved.env or None, working_dir,
+                        )
+                        template_vars.update(resolved_vars)
+                    try:
+                        message = resolved.tool.confirm_message.format_map(template_vars)
+                    except KeyError as exc:
+                        message = f"Approve execution of {resolved.tool.name}? (template error: {exc})"
+                else:
+                    message = f"Approve execution: {cmd_display}"
+
+                logger.info("🔒 Approval required for %s", resolved.tool.name)
+                approved = await _show_approval_dialog(message, policy.approval.headless)
+
+                if not approved:
+                    logger.warning("✗ User denied %s", resolved.tool.name)
+                    return [types.TextContent(
+                        type="text",
+                        text=f"Tool execution denied by user: {resolved.tool.name}",
+                    )]
+                logger.info("✓ User approved %s", resolved.tool.name)
+
         t0 = time.monotonic()
 
         tool_timeout = resolved.tool.timeout or 30.0
@@ -1366,15 +1647,20 @@ def cmd_run(args) -> None:
     server_name, tool_map, configs = load_configs(_resolve_run_configs(args))
 
     executor = None
+    policy: PolicyConfig | None = None
     policy_path = getattr(args, "policy", None)
     if policy_path:
         policy = load_policy(policy_path)
         tool_map = apply_policy(tool_map, policy)
         executor = policy.executor
 
+    # CLI override for headless approval behavior
+    if policy and getattr(args, "headless_approve", False):
+        policy.approval.headless = HeadlessPolicy.approve
+
     is_classic = getattr(args, "classic", False)
     index = ToolIndex.from_configs(configs)
-    server = create_server(server_name, tool_map, executor=executor, index=index, classic=is_classic)
+    server = create_server(server_name, tool_map, executor=executor, index=index, classic=is_classic, policy=policy)
 
     transport = getattr(args, "transport", "stdio")
 
@@ -1462,6 +1748,7 @@ def _build_run_parser(parser=None):
     parser.add_argument("bundled", nargs="*", metavar="NAME", help="Bundled config names (e.g. git, docker, obsidian)")
     parser.add_argument("--config", action="append", default=[], metavar="FILE", help="Custom config file path(s) — can be repeated")
     _add_policy_arg(parser)
+    parser.add_argument("--headless-approve", action="store_true", default=False, help="Auto-approve tool calls when no GUI/TTY is available (overrides policy headless=deny)")
     parser.add_argument("--classic", action="store_true", default=False, help="Classic mode: register all tools directly")
     parser.add_argument("--transport", choices=["stdio", "sse", "streamable-http"], default="stdio", help="MCP transport (default: stdio)")
     parser.add_argument("--host", default="127.0.0.1", help="Host for HTTP transports (default: 127.0.0.1)")
@@ -1470,10 +1757,62 @@ def _build_run_parser(parser=None):
     return parser
 
 
+def cmd_test_dialog(args=None, console: Console | None = None) -> int:
+    """Show a synthetic approval dialog so the user can verify their system shows it."""
+    console = console or globals()["console"]
+    message = "This is a test approval dialog from CLImax.\nIf you can see this, approvals will work on your system."
+
+    console.print("\n[bold]CLImax Approval Dialog Test[/bold]")
+    console.print("Attempting to show a native approval dialog...\n")
+
+    system = platform.system()
+    console.print(f"  Platform: [cyan]{system}[/cyan]")
+
+    async def _test():
+        # Try platform-specific dialog first
+        result = None
+        method = "unknown"
+
+        if system == "Darwin":
+            result = await _dialog_macos(message)
+            if result is not None:
+                method = "macOS (osascript)"
+        elif system == "Linux":
+            result = await _dialog_linux(message)
+            if result is not None:
+                import shutil
+                method = "zenity" if shutil.which("zenity") else "kdialog"
+        elif system == "Windows":
+            result = await _dialog_windows(message)
+            if result is not None:
+                method = "Windows (PowerShell)"
+
+        if result is not None:
+            return result, method
+
+        # Fall back to terminal
+        result = await _dialog_terminal(message, HeadlessPolicy.deny)
+        return result, "terminal (/dev/tty)"
+
+    result, method = asyncio.run(_test())
+
+    console.print(f"  Method:   [cyan]{method}[/cyan]")
+
+    if result:
+        console.print("\n  [bold green]✓ You clicked Approve[/bold green] — approval dialogs are working!")
+    else:
+        console.print("\n  [bold yellow]✗ You clicked Deny (or dialog was unavailable)[/bold yellow]")
+        console.print("    This is expected if you wanted to test the deny path.")
+        console.print("    If you never saw a dialog, ensure zenity/kdialog is installed (Linux)")
+        console.print("    or that osascript is available (macOS).")
+
+    return 0
+
+
 def main():
     import argparse
 
-    SUBCOMMANDS = {"validate", "list", "run", "skill"}
+    SUBCOMMANDS = {"validate", "list", "run", "skill", "test-dialog"}
 
     # Check if the first positional arg is a known subcommand
     argv = sys.argv[1:]
@@ -1504,6 +1843,9 @@ def main():
     # --- run ---
     _build_run_parser(subparsers.add_parser("run", help="Start MCP server"))
 
+    # --- test-dialog ---
+    subparsers.add_parser("test-dialog", help="Test that approval dialogs display on your system")
+
     # --- skill ---
     p_skill = subparsers.add_parser("skill", help="Print or install the CLImax skill file")
     skill_group = p_skill.add_mutually_exclusive_group()
@@ -1520,6 +1862,8 @@ def main():
         cmd_run(args)
     elif args.subcommand == "skill":
         sys.exit(cmd_skill(args))
+    elif args.subcommand == "test-dialog":
+        sys.exit(cmd_test_dialog(args))
 
 
 if __name__ == "__main__":

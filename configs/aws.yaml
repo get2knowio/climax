@@ -70,6 +70,8 @@ tools:
 
   - name: aws_s3_cp
     description: "⚠️ WRITE: Copy files between local filesystem and S3, or between S3 locations. Use --dryrun to preview."
+    risk: write
+    confirm_message: "Copy {source} to {destination}?"
     command: s3 cp
     timeout: 300
     args:
@@ -123,6 +125,8 @@ tools:
 
   - name: aws_s3_sync
     description: "⚠️ WRITE: Sync directories between local and S3 or S3-to-S3. Only copies new/changed files. Use --dryrun to preview. WARNING: --delete removes destination files not in source."
+    risk: write
+    confirm_message: "Sync {source} to {destination}?"
     command: s3 sync
     timeout: 600
     args:
@@ -194,6 +198,8 @@ tools:
 
   - name: aws_s3_rm
     description: "⚠️ DESTRUCTIVE: Delete S3 objects. Use --dryrun to preview. With --recursive, deletes entire prefixes."
+    risk: destructive
+    confirm_message: "Delete {path}?"
     command: s3 rm
     args:
       - name: path
@@ -394,6 +400,8 @@ tools:
 
   - name: aws_ec2_start_instances
     description: "⚠️ WRITE: Start one or more stopped EC2 instances."
+    risk: write
+    confirm_message: "Start instance(s) {instance_ids}?"
     command: ec2 start-instances
     timeout: 60
     args:
@@ -418,6 +426,8 @@ tools:
 
   - name: aws_ec2_stop_instances
     description: "⚠️ WRITE: Stop one or more running EC2 instances. Data on instance store volumes will be lost."
+    risk: write
+    confirm_message: "Stop instance(s) {instance_ids}?"
     command: ec2 stop-instances
     timeout: 60
     args:
@@ -646,6 +656,8 @@ tools:
 
   - name: aws_lambda_invoke
     description: "⚠️ WRITE: Invoke a Lambda function synchronously and get the response. Use for testing or triggering workflows."
+    risk: write
+    confirm_message: "Invoke Lambda function {function_name}?"
     command: lambda invoke
     timeout: 120
     args:
@@ -1059,6 +1071,8 @@ tools:
 
   - name: aws_ecs_update_service
     description: "⚠️ WRITE: Update an ECS service — change desired count, task definition, or force a new deployment."
+    risk: write
+    confirm_message: "Update ECS service {service} in cluster {cluster}?"
     command: ecs update-service
     timeout: 60
     args:
@@ -2004,6 +2018,7 @@ tools:
 
   - name: aws_sqs_send_message
     description: "⚠️ WRITE: Send a message to an SQS queue."
+    risk: write
     command: sqs send-message
     args:
       - name: queue_url
@@ -2154,6 +2169,7 @@ tools:
 
   - name: aws_sns_publish
     description: "⚠️ WRITE: Publish a message to an SNS topic. Delivers to all subscribed endpoints."
+    risk: write
     command: sns publish
     args:
       - name: topic_arn
@@ -2223,6 +2239,7 @@ tools:
 
   - name: aws_polly_synthesize_speech
     description: "⚠️ WRITE: Convert text to speech audio. Outputs an audio file (mp3, ogg_vorbis, or pcm). Use describe-voices first to find a valid voice-id."
+    risk: write
     command: polly synthesize-speech
     timeout: 120
     args:
@@ -2280,6 +2297,7 @@ tools:
 
   - name: aws_polly_start_speech_synthesis_task
     description: "⚠️ WRITE: Start an async speech synthesis task for long text. Output is written to an S3 bucket. Use for text too long for synchronous synthesize-speech."
+    risk: write
     command: polly start-speech-synthesis-task
     timeout: 60
     args:
