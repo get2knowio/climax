@@ -2,7 +2,7 @@
 
 Turn **any CLI** into [MCP](https://modelcontextprotocol.io/) tools with a YAML config. No custom server code — describe the interface, CLImax does the rest.
 
-Progressive discovery keeps token overhead constant regardless of how many tools you wire up. Policy files separate what tools exist from what's allowed. Stdio, SSE, and Streamable HTTP transports are all supported.
+Progressive discovery keeps token overhead constant regardless of how many tools you wire up. Policy files separate what tools exist from what's allowed, and approval dialogs let you gate dangerous operations behind OS-native confirmation popups. Stdio, SSE, and Streamable HTTP transports are all supported.
 
 ## Contents
 
@@ -18,6 +18,7 @@ Progressive discovery keeps token overhead constant regardless of how many tools
 - [Config Reference](#config-reference)
 - [Meta-Tools Reference](#meta-tools-reference)
 - [Policies](#policies)
+- [Approval Dialogs](#approval-dialogs)
 - [Security](#security)
 - [License](#license)
 
@@ -101,7 +102,7 @@ climax --config my-config.yaml
 climax git --config my-config.yaml
 ```
 
-CLImax ships with ready-to-use configs for git, docker, claude, and obsidian — see [`configs/README.md`](configs/README.md) for details on each config, including available tools and environment variables.
+CLImax ships with ready-to-use configs for git, docker, gh, aws, claude, and obsidian — see [`configs/README.md`](configs/README.md) for details on each config, including available tools and environment variables.
 
 ## Connecting to MCP Clients
 
@@ -243,7 +244,7 @@ If you prefer to write configs manually, see the [Config Reference](#config-refe
 
 ## CLI Reference
 
-CLImax provides four subcommands for working with configs:
+CLImax provides five subcommands:
 
 ### `climax run` — Start the MCP server
 
@@ -277,6 +278,7 @@ At least one bundled name or `--config` path must be provided. Run `climax run` 
 | `--config` | path to YAML | *(none)* | Custom config file path (can be repeated) |
 | `--classic` | *(flag)* | disabled | Register all individual tools directly instead of using meta-tools ([progressive discovery](#discovery-modes) is default) |
 | `--policy` | path to YAML | *(none)* | Policy file to restrict tools and constrain arguments |
+| `--headless-approve` | *(flag)* | disabled | Auto-approve tool calls when no GUI/TTY is available |
 | `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `WARNING` | Log verbosity (logs go to stderr) |
 | `--transport` | `stdio`, `sse`, `streamable-http` | `stdio` | MCP transport protocol (see [HTTP Transports](#http-transports)) |
 | `--host` | hostname/IP | `127.0.0.1` | Bind address for HTTP transports |
@@ -360,6 +362,19 @@ climax skill --install    # install to .claude/commands/climax-config.md
 
 See [Creating Configs](#creating-configs) for usage details.
 
+### `climax test-dialog` — Verify approval dialogs
+
+Shows a synthetic approval dialog so you can confirm that notifications display correctly on your system. Tries the native platform dialog first (macOS, Linux, Windows), then falls back to terminal.
+
+```bash
+climax test-dialog
+# CLImax Approval Dialog Test
+# Attempting to show a native approval dialog...
+#   Platform: Darwin
+#   Method:   macOS (osascript)
+#   ✓ You clicked Approve — approval dialogs are working!
+```
+
 ## HTTP Transports
 
 By default, CLImax communicates over **stdio** — the standard MCP transport where the client launches the server as a subprocess. For scenarios where you want CLImax running as a standalone HTTP server (remote access, shared servers, debugging), two HTTP transports are available.
@@ -418,7 +433,9 @@ CLImax ships with bundled configs in [`configs/`](configs/) — usable by bare n
 |--------|-----|------:|-------------|
 | [`git`](configs/git.yaml) | `git` | 6 | Common Git operations (status, log, diff, branch, add, commit) |
 | [`docker`](configs/docker.yaml) | `docker` | 5 | Container/image inspection (ps, images, logs, inspect, compose ps) |
-| [`obsidian`](configs/obsidian.yaml) | Obsidian CLI | 53 | Vault management — read, write, search, tags, links, tasks, daily notes, properties. Uses inline flags for `key=value` argument style. |
+| [`gh`](configs/gh.yaml) | `gh` | 47 | GitHub CLI — PRs, issues, repos, Actions, releases, search, gists, API, secrets, variables |
+| [`aws`](configs/aws.yaml) | `aws` | 76 | AWS CLI v2 — S3, EC2, IAM, Lambda, CloudFormation, ECS, CloudWatch, DynamoDB, SSM, EKS, RDS, SQS, SNS, Polly, and more |
+| [`obsidian`](configs/obsidian.yaml) | Obsidian CLI | 53 | Vault management — read, write, search, tags, links, tasks, daily notes, properties |
 | [`claude`](configs/claude.yaml) | `claude` | 4 | Claude Code integration — ask, ask with model, JSON output, custom system prompt |
 
 The `examples/` directory contains test-only configs:
@@ -459,6 +476,8 @@ tools:
     description: "What this does"  # shown to the LLM
     command: "sub command"         # appended to base → `my-cli sub command`
     timeout: 120                   # optional per-tool timeout in seconds (default: 30)
+    risk: write                    # optional: read (default) | write | destructive
+    confirm_message: "Deploy {target}?"  # optional: approval dialog template
     args:
       - name: target
         type: string              # string | integer | number | boolean
@@ -764,6 +783,84 @@ tools:
 - Argument validation happens before command execution — rejected calls never run the subprocess
 - Docker executor prepends `docker run --rm` with the configured flags to every command
 
+## Approval Dialogs
+
+Approval dialogs let you gate tool execution behind a confirmation popup. When enabled, CLImax shows a native OS dialog before running write or destructive operations — giving the user final say.
+
+### How it works
+
+Each tool can declare a **risk level** (`read`, `write`, or `destructive`) and an optional **confirm_message** template:
+
+```yaml
+tools:
+  - name: aws_s3_rm
+    description: "Delete S3 objects"
+    command: s3 rm
+    risk: destructive
+    confirm_message: "Delete {path}?"
+    args:
+      - name: path
+        type: string
+        required: true
+        positional: true
+```
+
+When a policy enables approvals, the `confirm_message` is rendered with the actual argument values and shown in a native dialog.
+
+### Policy configuration
+
+Add an `approval` section to your policy file:
+
+```yaml
+approval:
+  global: write              # none | destructive | write (default) | all
+  headless: deny             # deny (default) | approve
+  tools:
+    aws_s3_rm: true          # force approval for this tool
+    aws_s3_ls: false         # skip approval even if global would require it
+
+tools:
+  aws_s3_rm:
+    require_approval: true   # alternative: set per-tool in the tools section
+```
+
+| Field | Values | Default | Description |
+|-------|--------|---------|-------------|
+| `approval.global` | `none`, `destructive`, `write`, `all` | `write` | Which risk levels require approval |
+| `approval.headless` | `deny`, `approve` | `deny` | Behavior when no GUI/TTY is available |
+| `approval.tools` | map of tool name → bool | `{}` | Per-tool approval overrides |
+
+### Resolving opaque IDs
+
+Some tools take opaque identifiers (instance IDs, ARNs) that aren't meaningful in a dialog. Use `resolve` blocks to look up human-readable names before showing the approval:
+
+```yaml
+- name: aws_ec2_terminate_instances
+  risk: destructive
+  confirm_message: "Terminate {instance_ids} ({_instance_name})?"
+  resolve:
+    _instance_name:
+      command: "ec2 describe-instances"
+      args:
+        instance_ids: "{instance_ids}"
+        query: "'Reservations[].Instances[].[Tags[?Key==`Name`].Value|[0]]|[0][0]'"
+        output: "text"
+      timeout: 10
+```
+
+Resolve commands inherit the config's base command and run with a short timeout. If resolution fails, a `<unresolved:_instance_name>` placeholder is used instead.
+
+### Platform support
+
+| Platform | Dialog method | Fallback |
+|----------|--------------|----------|
+| macOS | AppleScript (`osascript`) | Terminal prompt |
+| Linux | zenity or kdialog | Terminal prompt |
+| Windows | PowerShell MessageBox | Terminal prompt |
+| Headless/CI | — | Policy `headless` setting (deny or approve) |
+
+Use `climax test-dialog` to verify dialogs work on your system. Use `--headless-approve` on the `run` command to auto-approve in CI environments.
+
 ## Security
 
 - Commands are executed via `asyncio.create_subprocess_exec` (no shell injection)
@@ -771,6 +868,7 @@ tools:
 - The YAML author controls what commands are exposed — review configs before use
 - Use a **policy file** to restrict which tools are enabled and constrain argument values
 - Use the **Docker executor** to sandbox command execution in a container
+- **Approval dialogs** gate write and destructive operations behind OS-native confirmation popups — configurable per-tool or by risk level in the policy
 - Policy argument constraints use `re.fullmatch` — patterns must match the entire value
 
 ## License
