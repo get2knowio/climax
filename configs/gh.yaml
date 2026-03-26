@@ -1,0 +1,1499 @@
+# CLImax config for the GitHub CLI (gh)
+# Covers: PRs, issues, repos, runs, releases, search, gists, API, secrets, variables
+
+name: gh-tools
+description: "MCP tools for the GitHub CLI — manage PRs, issues, repos, Actions, releases, and more"
+command: gh
+category: devops
+tags: ["github", "pull-requests", "issues", "actions", "releases"]
+
+tools:
+  # ─── Pull Requests ───────────────────────────────────────────────
+
+  - name: gh_pr_list
+    description: "List pull requests in a repository. Use to discover open/closed/merged PRs, filter by author, label, or search query. Returns structured data with --json."
+    command: pr list
+    args:
+      - name: state
+        type: string
+        description: "Filter by PR state"
+        flag: "--state"
+        enum: ["open", "closed", "merged", "all"]
+      - name: author
+        type: string
+        description: "Filter by PR author (use '@me' for your own)"
+        flag: "--author"
+      - name: assignee
+        type: string
+        description: "Filter by assignee login"
+        flag: "--assignee"
+      - name: base
+        type: string
+        description: "Filter by base branch"
+        flag: "--base"
+      - name: head
+        type: string
+        description: "Filter by head branch"
+        flag: "--head"
+      - name: label
+        type: string
+        description: "Filter by label (repeat flag for multiple)"
+        flag: "--label"
+      - name: search
+        type: string
+        description: "GitHub search query (e.g. 'status:success review:required')"
+        flag: "--search"
+      - name: draft
+        type: boolean
+        description: "Filter to only draft PRs"
+        flag: "--draft"
+      - name: limit
+        type: integer
+        description: "Maximum number of PRs to fetch"
+        flag: "--limit"
+        default: 30
+      - name: json
+        type: string
+        description: "Output JSON with specified fields (comma-separated, e.g. 'number,title,state,author')"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_view
+    description: "View detailed information about a specific pull request — title, body, status, checks, reviewers, labels, and more."
+    command: pr view
+    args:
+      - name: number
+        type: string
+        description: "PR number, URL, or branch name"
+        required: true
+        positional: true
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: comments
+        type: boolean
+        description: "Include PR comments in the output"
+        flag: "--comments"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_status
+    description: "Show the status of PRs relevant to you — PRs you created, PRs requesting your review, and the PR for the current branch."
+    command: pr status
+    args:
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_checks
+    description: "View CI/CD check status for a pull request — see which checks passed, failed, or are pending."
+    command: pr checks
+    args:
+      - name: number
+        type: string
+        description: "PR number, URL, or branch name"
+        positional: true
+      - name: required
+        type: boolean
+        description: "Show only required checks"
+        flag: "--required"
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_diff
+    description: "View the diff of a pull request — see exactly what code changed."
+    command: pr diff
+    args:
+      - name: number
+        type: string
+        description: "PR number, URL, or branch name"
+        positional: true
+      - name: name_only
+        type: boolean
+        description: "Show only names of changed files"
+        flag: "--name-only"
+      - name: patch
+        type: boolean
+        description: "Show diff in patch format"
+        flag: "--patch"
+      - name: color
+        type: string
+        description: "Color mode for diff output"
+        flag: "--color"
+        enum: ["always", "never", "auto"]
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_create
+    description: "⚠️ WRITE: Create a new pull request. Always provide --title and --body to avoid interactive prompts."
+    command: pr create
+    timeout: 60
+    args:
+      - name: title
+        type: string
+        description: "PR title"
+        required: true
+        flag: "--title"
+      - name: body
+        type: string
+        description: "PR body/description in Markdown"
+        flag: "--body"
+        stdin: true
+      - name: base
+        type: string
+        description: "Base branch the PR merges into"
+        flag: "--base"
+      - name: head
+        type: string
+        description: "Branch containing the changes"
+        flag: "--head"
+      - name: draft
+        type: boolean
+        description: "Create as a draft PR"
+        flag: "--draft"
+      - name: fill
+        type: boolean
+        description: "Auto-fill title and body from commits"
+        flag: "--fill"
+      - name: assignee
+        type: string
+        description: "Assign to a user login"
+        flag: "--assignee"
+      - name: reviewer
+        type: string
+        description: "Request review from a user"
+        flag: "--reviewer"
+      - name: label
+        type: string
+        description: "Add a label"
+        flag: "--label"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_edit
+    description: "⚠️ WRITE: Edit a pull request — update title, body, labels, assignees, reviewers, or milestone."
+    command: pr edit
+    args:
+      - name: number
+        type: string
+        description: "PR number, URL, or branch name"
+        required: true
+        positional: true
+      - name: title
+        type: string
+        description: "New PR title"
+        flag: "--title"
+      - name: body
+        type: string
+        description: "New PR body"
+        flag: "--body"
+        stdin: true
+      - name: add_label
+        type: string
+        description: "Add a label"
+        flag: "--add-label"
+      - name: remove_label
+        type: string
+        description: "Remove a label"
+        flag: "--remove-label"
+      - name: add_assignee
+        type: string
+        description: "Add an assignee"
+        flag: "--add-assignee"
+      - name: add_reviewer
+        type: string
+        description: "Add a reviewer"
+        flag: "--add-reviewer"
+      - name: milestone
+        type: string
+        description: "Set milestone"
+        flag: "--milestone"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_comment
+    description: "⚠️ WRITE: Add a comment to a pull request."
+    command: pr comment
+    args:
+      - name: number
+        type: string
+        description: "PR number, URL, or branch name"
+        required: true
+        positional: true
+      - name: body
+        type: string
+        description: "Comment text in Markdown"
+        required: true
+        flag: "--body"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_review
+    description: "⚠️ WRITE: Submit a review on a pull request — approve, request changes, or leave a comment."
+    command: pr review
+    args:
+      - name: number
+        type: string
+        description: "PR number, URL, or branch name"
+        required: true
+        positional: true
+      - name: approve
+        type: boolean
+        description: "Approve the PR"
+        flag: "--approve"
+      - name: request_changes
+        type: boolean
+        description: "Request changes on the PR"
+        flag: "--request-changes"
+      - name: comment
+        type: boolean
+        description: "Leave a review comment (without approval/rejection)"
+        flag: "--comment"
+      - name: body
+        type: string
+        description: "Review body text"
+        required: true
+        flag: "--body"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_merge
+    description: "⚠️ WRITE: Merge a pull request. Specify a merge strategy (--merge, --squash, or --rebase) to avoid interactive prompts."
+    command: pr merge
+    timeout: 60
+    args:
+      - name: number
+        type: string
+        description: "PR number, URL, or branch name"
+        required: true
+        positional: true
+      - name: merge
+        type: boolean
+        description: "Use merge commit strategy"
+        flag: "--merge"
+      - name: squash
+        type: boolean
+        description: "Use squash merge strategy"
+        flag: "--squash"
+      - name: rebase
+        type: boolean
+        description: "Use rebase merge strategy"
+        flag: "--rebase"
+      - name: auto
+        type: boolean
+        description: "Enable auto-merge when checks pass"
+        flag: "--auto"
+      - name: delete_branch
+        type: boolean
+        description: "Delete the head branch after merging"
+        flag: "--delete-branch"
+      - name: body
+        type: string
+        description: "Merge commit body text"
+        flag: "--body"
+      - name: subject
+        type: string
+        description: "Merge commit subject"
+        flag: "--subject"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_close
+    description: "⚠️ WRITE: Close a pull request without merging."
+    command: pr close
+    args:
+      - name: number
+        type: string
+        description: "PR number, URL, or branch name"
+        required: true
+        positional: true
+      - name: comment_text
+        type: string
+        description: "Leave a closing comment"
+        flag: "--comment"
+      - name: delete_branch
+        type: boolean
+        description: "Delete the head branch"
+        flag: "--delete-branch"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_reopen
+    description: "⚠️ WRITE: Reopen a previously closed pull request."
+    command: pr reopen
+    args:
+      - name: number
+        type: string
+        description: "PR number, URL, or branch name"
+        required: true
+        positional: true
+      - name: comment_text
+        type: string
+        description: "Leave a comment when reopening"
+        flag: "--comment"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_pr_ready
+    description: "⚠️ WRITE: Mark a draft PR as ready for review, or use --undo to convert back to draft."
+    command: pr ready
+    args:
+      - name: number
+        type: string
+        description: "PR number, URL, or branch name"
+        positional: true
+      - name: undo
+        type: boolean
+        description: "Convert back to draft"
+        flag: "--undo"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  # ─── Issues ──────────────────────────────────────────────────────
+
+  - name: gh_issue_list
+    description: "List issues in a repository. Filter by state, author, label, milestone, or use GitHub search syntax."
+    command: issue list
+    args:
+      - name: state
+        type: string
+        description: "Filter by issue state"
+        flag: "--state"
+        enum: ["open", "closed", "all"]
+      - name: author
+        type: string
+        description: "Filter by author (use '@me' for your own)"
+        flag: "--author"
+      - name: assignee
+        type: string
+        description: "Filter by assignee login"
+        flag: "--assignee"
+      - name: label
+        type: string
+        description: "Filter by label"
+        flag: "--label"
+      - name: milestone
+        type: string
+        description: "Filter by milestone title"
+        flag: "--milestone"
+      - name: search
+        type: string
+        description: "GitHub search query"
+        flag: "--search"
+      - name: mention
+        type: string
+        description: "Filter by user mentioned"
+        flag: "--mention"
+      - name: limit
+        type: integer
+        description: "Maximum number of issues to fetch"
+        flag: "--limit"
+        default: 30
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_issue_view
+    description: "View detailed information about a specific issue — title, body, labels, assignees, comments, and linked PRs."
+    command: issue view
+    args:
+      - name: number
+        type: string
+        description: "Issue number or URL"
+        required: true
+        positional: true
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: comments
+        type: boolean
+        description: "Include issue comments in the output"
+        flag: "--comments"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_issue_status
+    description: "Show the status of issues relevant to you — issues assigned to you, mentioning you, or opened by you."
+    command: issue status
+    args:
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_issue_create
+    description: "⚠️ WRITE: Create a new issue. Always provide --title and --body to avoid interactive prompts."
+    command: issue create
+    timeout: 60
+    args:
+      - name: title
+        type: string
+        description: "Issue title"
+        required: true
+        flag: "--title"
+      - name: body
+        type: string
+        description: "Issue body in Markdown"
+        flag: "--body"
+        stdin: true
+      - name: label
+        type: string
+        description: "Add a label"
+        flag: "--label"
+      - name: assignee
+        type: string
+        description: "Assign to a user login"
+        flag: "--assignee"
+      - name: milestone
+        type: string
+        description: "Set milestone"
+        flag: "--milestone"
+      - name: project
+        type: string
+        description: "Add to a project"
+        flag: "--project"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_issue_edit
+    description: "⚠️ WRITE: Edit an issue — update title, body, labels, assignees, or milestone."
+    command: issue edit
+    args:
+      - name: number
+        type: string
+        description: "Issue number or URL"
+        required: true
+        positional: true
+      - name: title
+        type: string
+        description: "New issue title"
+        flag: "--title"
+      - name: body
+        type: string
+        description: "New issue body"
+        flag: "--body"
+        stdin: true
+      - name: add_label
+        type: string
+        description: "Add a label"
+        flag: "--add-label"
+      - name: remove_label
+        type: string
+        description: "Remove a label"
+        flag: "--remove-label"
+      - name: add_assignee
+        type: string
+        description: "Add an assignee"
+        flag: "--add-assignee"
+      - name: milestone
+        type: string
+        description: "Set milestone"
+        flag: "--milestone"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_issue_comment
+    description: "⚠️ WRITE: Add a comment to an issue."
+    command: issue comment
+    args:
+      - name: number
+        type: string
+        description: "Issue number or URL"
+        required: true
+        positional: true
+      - name: body
+        type: string
+        description: "Comment text in Markdown"
+        required: true
+        flag: "--body"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_issue_close
+    description: "⚠️ WRITE: Close an issue."
+    command: issue close
+    args:
+      - name: number
+        type: string
+        description: "Issue number or URL"
+        required: true
+        positional: true
+      - name: comment_text
+        type: string
+        description: "Leave a closing comment"
+        flag: "--comment"
+      - name: reason
+        type: string
+        description: "Reason for closing"
+        flag: "--reason"
+        enum: ["completed", "not planned", "duplicate"]
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_issue_reopen
+    description: "⚠️ WRITE: Reopen a previously closed issue."
+    command: issue reopen
+    args:
+      - name: number
+        type: string
+        description: "Issue number or URL"
+        required: true
+        positional: true
+      - name: comment_text
+        type: string
+        description: "Leave a comment when reopening"
+        flag: "--comment"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  # ─── Repositories ────────────────────────────────────────────────
+
+  - name: gh_repo_view
+    description: "View repository details — description, stars, forks, language, license, and more."
+    command: repo view
+    args:
+      - name: repository
+        type: string
+        description: "Repository in OWNER/REPO format (defaults to current repo)"
+        positional: true
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+
+  - name: gh_repo_list
+    description: "List repositories for a user or organization. Useful for discovering repos and their metadata."
+    command: repo list
+    args:
+      - name: owner
+        type: string
+        description: "User or organization to list repos for"
+        positional: true
+      - name: limit
+        type: integer
+        description: "Maximum number of repos to fetch"
+        flag: "--limit"
+        default: 30
+      - name: language
+        type: string
+        description: "Filter by primary language"
+        flag: "--language"
+      - name: topic
+        type: string
+        description: "Filter by topic"
+        flag: "--topic"
+      - name: visibility
+        type: string
+        description: "Filter by visibility"
+        flag: "--visibility"
+        enum: ["public", "private", "internal"]
+      - name: archived
+        type: boolean
+        description: "Include only archived repos"
+        flag: "--archived"
+      - name: source
+        type: boolean
+        description: "Include only non-fork repos"
+        flag: "--source"
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+
+  - name: gh_repo_create
+    description: "⚠️ WRITE: Create a new GitHub repository. Must specify visibility (--public, --private, or --internal)."
+    command: repo create
+    timeout: 60
+    args:
+      - name: name
+        type: string
+        description: "Repository name (OWNER/NAME or just NAME)"
+        required: true
+        positional: true
+      - name: public
+        type: boolean
+        description: "Make the repo public"
+        flag: "--public"
+      - name: private
+        type: boolean
+        description: "Make the repo private"
+        flag: "--private"
+      - name: description
+        type: string
+        description: "Repository description"
+        flag: "--description"
+      - name: clone
+        type: boolean
+        description: "Clone the repo after creation"
+        flag: "--clone"
+      - name: add_readme
+        type: boolean
+        description: "Add a README file"
+        flag: "--add-readme"
+      - name: license
+        type: string
+        description: "License template (e.g. mit, apache-2.0)"
+        flag: "--license"
+      - name: gitignore
+        type: string
+        description: "Gitignore template (e.g. Python, Node)"
+        flag: "--gitignore"
+
+  - name: gh_repo_edit
+    description: "⚠️ WRITE: Edit repository settings — description, homepage, default branch, feature toggles."
+    command: repo edit
+    args:
+      - name: repository
+        type: string
+        description: "Repository in OWNER/REPO format"
+        positional: true
+      - name: description
+        type: string
+        description: "Repository description"
+        flag: "--description"
+      - name: homepage
+        type: string
+        description: "Repository homepage URL"
+        flag: "--homepage"
+      - name: default_branch
+        type: string
+        description: "Set the default branch"
+        flag: "--default-branch"
+      - name: enable_issues
+        type: boolean
+        description: "Enable issues"
+        flag: "--enable-issues"
+      - name: enable_wiki
+        type: boolean
+        description: "Enable wiki"
+        flag: "--enable-wiki"
+      - name: add_topic
+        type: string
+        description: "Add a repository topic"
+        flag: "--add-topic"
+      - name: remove_topic
+        type: string
+        description: "Remove a repository topic"
+        flag: "--remove-topic"
+
+  # ─── Actions / Workflow Runs ─────────────────────────────────────
+
+  - name: gh_run_list
+    description: "List recent workflow runs. Use to check CI status, find failed builds, or monitor deployments."
+    command: run list
+    args:
+      - name: workflow
+        type: string
+        description: "Filter by workflow name or filename"
+        flag: "--workflow"
+      - name: branch
+        type: string
+        description: "Filter by branch"
+        flag: "--branch"
+      - name: status
+        type: string
+        description: "Filter by run status"
+        flag: "--status"
+        enum: ["queued", "in_progress", "completed", "success", "failure", "cancelled", "action_required", "timed_out"]
+      - name: event
+        type: string
+        description: "Filter by trigger event (e.g. push, pull_request)"
+        flag: "--event"
+      - name: user
+        type: string
+        description: "Filter by user who triggered the run"
+        flag: "--user"
+      - name: limit
+        type: integer
+        description: "Maximum number of runs to fetch"
+        flag: "--limit"
+        default: 20
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_run_view
+    description: "View details of a specific workflow run — status, jobs, steps, and logs. Use --log-failed to see only failed step output."
+    command: run view
+    timeout: 60
+    args:
+      - name: run_id
+        type: string
+        description: "Workflow run ID"
+        required: true
+        positional: true
+      - name: verbose
+        type: boolean
+        description: "Show job steps"
+        flag: "--verbose"
+      - name: log
+        type: boolean
+        description: "Show full run log (can be very large)"
+        flag: "--log"
+      - name: log_failed
+        type: boolean
+        description: "Show only failed step logs — preferred over --log for debugging"
+        flag: "--log-failed"
+      - name: exit_status
+        type: boolean
+        description: "Exit with non-zero status if run failed"
+        flag: "--exit-status"
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_run_rerun
+    description: "⚠️ WRITE: Re-run a workflow run. Use --failed to re-run only the failed jobs."
+    command: run rerun
+    timeout: 60
+    args:
+      - name: run_id
+        type: string
+        description: "Workflow run ID"
+        required: true
+        positional: true
+      - name: failed
+        type: boolean
+        description: "Re-run only the failed jobs"
+        flag: "--failed"
+      - name: debug
+        type: boolean
+        description: "Re-run with debug logging enabled"
+        flag: "--debug"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_run_cancel
+    description: "⚠️ WRITE: Cancel a workflow run that is in progress."
+    command: run cancel
+    args:
+      - name: run_id
+        type: string
+        description: "Workflow run ID"
+        required: true
+        positional: true
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_run_download
+    description: "Download artifacts from a workflow run."
+    command: run download
+    timeout: 120
+    args:
+      - name: run_id
+        type: string
+        description: "Workflow run ID"
+        required: true
+        positional: true
+      - name: name
+        type: string
+        description: "Name of the artifact to download"
+        flag: "--name"
+      - name: pattern
+        type: string
+        description: "Glob pattern to match artifact names"
+        flag: "--pattern"
+      - name: dir
+        type: string
+        description: "Directory to download into"
+        flag: "--dir"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  # ─── Releases ────────────────────────────────────────────────────
+
+  - name: gh_release_list
+    description: "List releases for a repository — see published versions, draft releases, and pre-releases."
+    command: release list
+    args:
+      - name: limit
+        type: integer
+        description: "Maximum number of releases to fetch"
+        flag: "--limit"
+        default: 30
+      - name: exclude_drafts
+        type: boolean
+        description: "Exclude draft releases"
+        flag: "--exclude-drafts"
+      - name: exclude_pre_releases
+        type: boolean
+        description: "Exclude pre-releases"
+        flag: "--exclude-pre-releases"
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_release_view
+    description: "View details of a specific release — tag, notes, assets, and metadata."
+    command: release view
+    args:
+      - name: tag
+        type: string
+        description: "Release tag (defaults to latest)"
+        positional: true
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_release_create
+    description: "⚠️ WRITE: Create a new release. Provide --title and --notes (or --generate-notes) to avoid interactive prompts."
+    command: release create
+    timeout: 120
+    args:
+      - name: tag
+        type: string
+        description: "Tag name for the release"
+        required: true
+        positional: true
+      - name: title
+        type: string
+        description: "Release title"
+        flag: "--title"
+      - name: notes
+        type: string
+        description: "Release notes text"
+        flag: "--notes"
+      - name: generate_notes
+        type: boolean
+        description: "Auto-generate release notes from commits"
+        flag: "--generate-notes"
+      - name: target
+        type: string
+        description: "Target branch or commit SHA"
+        flag: "--target"
+      - name: draft
+        type: boolean
+        description: "Create as a draft release"
+        flag: "--draft"
+      - name: prerelease
+        type: boolean
+        description: "Mark as a pre-release"
+        flag: "--prerelease"
+      - name: latest
+        type: boolean
+        description: "Mark as the latest release"
+        flag: "--latest"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  # ─── Search ──────────────────────────────────────────────────────
+
+  - name: gh_search_issues
+    description: "Search for issues across all of GitHub. Powerful for finding bugs, feature requests, or tracking cross-repo patterns."
+    command: search issues
+    args:
+      - name: query
+        type: string
+        description: "Search query (GitHub search syntax)"
+        required: true
+        positional: true
+      - name: repo
+        type: string
+        description: "Limit to specific repos"
+        flag: "--repo"
+      - name: owner
+        type: string
+        description: "Limit to specific owners"
+        flag: "--owner"
+      - name: state
+        type: string
+        description: "Filter by state"
+        flag: "--state"
+        enum: ["open", "closed"]
+      - name: label
+        type: string
+        description: "Filter by label"
+        flag: "--label"
+      - name: author
+        type: string
+        description: "Filter by author"
+        flag: "--author"
+      - name: assignee
+        type: string
+        description: "Filter by assignee"
+        flag: "--assignee"
+      - name: language
+        type: string
+        description: "Filter by repository language"
+        flag: "--language"
+      - name: sort
+        type: string
+        description: "Sort field"
+        flag: "--sort"
+      - name: order
+        type: string
+        description: "Sort order"
+        flag: "--order"
+        enum: ["asc", "desc"]
+      - name: limit
+        type: integer
+        description: "Maximum number of results"
+        flag: "--limit"
+        default: 30
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+
+  - name: gh_search_prs
+    description: "Search for pull requests across all of GitHub. Filter by review status, merge state, CI checks, and more."
+    command: search prs
+    args:
+      - name: query
+        type: string
+        description: "Search query (GitHub search syntax)"
+        required: true
+        positional: true
+      - name: repo
+        type: string
+        description: "Limit to specific repos"
+        flag: "--repo"
+      - name: owner
+        type: string
+        description: "Limit to specific owners"
+        flag: "--owner"
+      - name: state
+        type: string
+        description: "Filter by state"
+        flag: "--state"
+        enum: ["open", "closed"]
+      - name: draft
+        type: boolean
+        description: "Filter to draft PRs"
+        flag: "--draft"
+      - name: merged
+        type: boolean
+        description: "Filter to merged PRs"
+        flag: "--merged"
+      - name: review
+        type: string
+        description: "Filter by review status"
+        flag: "--review"
+        enum: ["none", "required", "approved", "changes_requested"]
+      - name: label
+        type: string
+        description: "Filter by label"
+        flag: "--label"
+      - name: limit
+        type: integer
+        description: "Maximum number of results"
+        flag: "--limit"
+        default: 30
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+
+  - name: gh_search_repos
+    description: "Search for repositories across GitHub. Find repos by topic, language, stars, or keywords."
+    command: search repos
+    args:
+      - name: query
+        type: string
+        description: "Search query"
+        required: true
+        positional: true
+      - name: owner
+        type: string
+        description: "Limit to specific owners"
+        flag: "--owner"
+      - name: language
+        type: string
+        description: "Filter by language"
+        flag: "--language"
+      - name: topic
+        type: string
+        description: "Filter by topic"
+        flag: "--topic"
+      - name: stars
+        type: string
+        description: "Filter by star count (e.g. '>1000', '100..500')"
+        flag: "--stars"
+      - name: visibility
+        type: string
+        description: "Filter by visibility"
+        flag: "--visibility"
+        enum: ["public", "private", "internal"]
+      - name: sort
+        type: string
+        description: "Sort by field"
+        flag: "--sort"
+        enum: ["forks", "help-wanted-issues", "stars", "updated"]
+      - name: limit
+        type: integer
+        description: "Maximum number of results"
+        flag: "--limit"
+        default: 30
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+
+  - name: gh_search_code
+    description: "Search for code across GitHub. Find specific functions, patterns, or configuration across repositories."
+    command: search code
+    args:
+      - name: query
+        type: string
+        description: "Search query"
+        required: true
+        positional: true
+      - name: repo
+        type: string
+        description: "Limit to specific repos"
+        flag: "--repo"
+      - name: owner
+        type: string
+        description: "Limit to specific owners"
+        flag: "--owner"
+      - name: language
+        type: string
+        description: "Filter by language"
+        flag: "--language"
+      - name: filename
+        type: string
+        description: "Filter by filename"
+        flag: "--filename"
+      - name: extension
+        type: string
+        description: "Filter by file extension"
+        flag: "--extension"
+      - name: limit
+        type: integer
+        description: "Maximum number of results"
+        flag: "--limit"
+        default: 30
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+
+  # ─── Gists ──────────────────────────────────────────────────────
+
+  - name: gh_gist_list
+    description: "List your gists. Use to find saved code snippets and notes."
+    command: gist list
+    args:
+      - name: limit
+        type: integer
+        description: "Maximum number of gists to fetch"
+        flag: "--limit"
+        default: 10
+      - name: public
+        type: boolean
+        description: "Show only public gists"
+        flag: "--public"
+      - name: secret
+        type: boolean
+        description: "Show only secret gists"
+        flag: "--secret"
+
+  - name: gh_gist_view
+    description: "View the content of a gist."
+    command: gist view
+    args:
+      - name: id
+        type: string
+        description: "Gist ID or URL"
+        required: true
+        positional: true
+      - name: filename
+        type: string
+        description: "View a specific file within the gist"
+        flag: "--filename"
+      - name: files
+        type: boolean
+        description: "List filenames only"
+        flag: "--files"
+      - name: raw
+        type: boolean
+        description: "Print raw content without decoration"
+        flag: "--raw"
+
+  - name: gh_gist_create
+    description: "⚠️ WRITE: Create a new gist from file content."
+    command: gist create
+    timeout: 60
+    args:
+      - name: filename
+        type: string
+        description: "Filename for the gist (when reading from stdin)"
+        flag: "--filename"
+      - name: desc
+        type: string
+        description: "Gist description"
+        flag: "--desc"
+      - name: public
+        type: boolean
+        description: "Make the gist public (default is secret)"
+        flag: "--public"
+      - name: content
+        type: string
+        description: "Content for the gist, piped via stdin"
+        stdin: true
+
+  # ─── API (raw GitHub API access) ────────────────────────────────
+
+  - name: gh_api
+    description: "Make an authenticated GitHub API request. The most flexible tool — use for any GitHub API endpoint not covered by other tools. Supports REST and GraphQL."
+    command: api
+    timeout: 60
+    args:
+      - name: endpoint
+        type: string
+        description: "API endpoint path (e.g. 'repos/{owner}/{repo}/issues') or 'graphql'. Placeholders {owner}, {repo}, {branch} auto-resolve."
+        required: true
+        positional: true
+      - name: method
+        type: string
+        description: "HTTP method"
+        flag: "--method"
+        enum: ["GET", "POST", "PUT", "PATCH", "DELETE"]
+      - name: field
+        type: string
+        description: "Add a typed parameter (key=value with type inference, or key=@file)"
+        flag: "-F"
+      - name: raw_field
+        type: string
+        description: "Add a string parameter (key=value, always string)"
+        flag: "-f"
+      - name: jq
+        type: string
+        description: "Filter response with a jq expression"
+        flag: "--jq"
+      - name: paginate
+        type: boolean
+        description: "Fetch all pages of results"
+        flag: "--paginate"
+      - name: cache
+        type: string
+        description: "Cache response for this duration (e.g. '5m', '1h')"
+        flag: "--cache"
+      - name: header
+        type: string
+        description: "Add an HTTP header (key:value)"
+        flag: "-H"
+      - name: silent
+        type: boolean
+        description: "Suppress response output (useful with --jq)"
+        flag: "--silent"
+      - name: hostname
+        type: string
+        description: "GitHub hostname (for GHES)"
+        flag: "--hostname"
+
+  # ─── Secrets & Variables ─────────────────────────────────────────
+
+  - name: gh_secret_list
+    description: "List secret names (not values) for a repository, environment, or organization."
+    command: secret list
+    args:
+      - name: app
+        type: string
+        description: "Secret scope"
+        flag: "--app"
+        enum: ["actions", "codespaces", "dependabot"]
+      - name: env
+        type: string
+        description: "List secrets for a specific environment"
+        flag: "--env"
+      - name: org
+        type: string
+        description: "List secrets for an organization"
+        flag: "--org"
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_secret_set
+    description: "⚠️ WRITE: Set a secret for a repository, environment, or organization. Value is encrypted before upload."
+    command: secret set
+    timeout: 60
+    args:
+      - name: secret_name
+        type: string
+        description: "Name of the secret"
+        required: true
+        positional: true
+      - name: body
+        type: string
+        description: "Secret value"
+        required: true
+        flag: "--body"
+      - name: app
+        type: string
+        description: "Secret scope"
+        flag: "--app"
+        enum: ["actions", "codespaces", "dependabot"]
+      - name: env
+        type: string
+        description: "Set for a specific environment"
+        flag: "--env"
+      - name: org
+        type: string
+        description: "Set for an organization"
+        flag: "--org"
+      - name: visibility
+        type: string
+        description: "Org secret visibility"
+        flag: "--visibility"
+        enum: ["all", "private", "selected"]
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_variable_list
+    description: "List Actions variables for a repository, environment, or organization."
+    command: variable list
+    args:
+      - name: env
+        type: string
+        description: "List variables for a specific environment"
+        flag: "--env"
+      - name: org
+        type: string
+        description: "List variables for an organization"
+        flag: "--org"
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_variable_get
+    description: "Get the value of a specific Actions variable."
+    command: variable get
+    args:
+      - name: variable_name
+        type: string
+        description: "Name of the variable"
+        required: true
+        positional: true
+      - name: env
+        type: string
+        description: "Get from a specific environment"
+        flag: "--env"
+      - name: org
+        type: string
+        description: "Get from an organization"
+        flag: "--org"
+      - name: json
+        type: string
+        description: "Output JSON with specified fields"
+        flag: "--json"
+      - name: jq
+        type: string
+        description: "Filter JSON output using a jq expression"
+        flag: "--jq"
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  - name: gh_variable_set
+    description: "⚠️ WRITE: Set an Actions variable for a repository, environment, or organization."
+    command: variable set
+    args:
+      - name: variable_name
+        type: string
+        description: "Name of the variable"
+        required: true
+        positional: true
+      - name: body
+        type: string
+        description: "Variable value"
+        required: true
+        flag: "--body"
+      - name: env
+        type: string
+        description: "Set for a specific environment"
+        flag: "--env"
+      - name: org
+        type: string
+        description: "Set for an organization"
+        flag: "--org"
+      - name: visibility
+        type: string
+        description: "Org variable visibility"
+        flag: "--visibility"
+        enum: ["all", "private", "selected"]
+      - name: repo
+        type: string
+        description: "Target repository in OWNER/REPO format"
+        flag: "--repo"
+
+  # ─── Status ─────────────────────────────────────────────────────
+
+  - name: gh_status
+    description: "Show a dashboard of your notifications, assigned issues, and review requests across all repos."
+    command: status

@@ -1,0 +1,2435 @@
+# CLImax config for the AWS CLI v2
+# Covers: STS, S3, EC2, IAM, Lambda, CloudFormation, ECS, CloudWatch Logs,
+#          DynamoDB, SSM, CloudWatch, Route53, EKS, RDS, SQS, SNS, Polly
+#
+# NOTE: AWS CLI has a massive surface area. This config covers the most
+# commonly used read operations and select safe write operations.
+# All commands respect --region, --profile, --output, and --query globals.
+
+name: aws-tools
+description: "MCP tools for AWS CLI v2 — manage AWS infrastructure, query services, and automate cloud operations"
+command: aws
+category: cloud
+tags: ["aws", "cloud", "infrastructure", "devops"]
+
+tools:
+  # ─── STS (Identity) ─────────────────────────────────────────────
+
+  - name: aws_sts_get_caller_identity
+    description: "Check who you are — returns the AWS account ID, IAM user/role ARN, and user ID for the current credentials. Use this first to verify authentication."
+    command: sts get-caller-identity
+    args:
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── S3 ─────────────────────────────────────────────────────────
+
+  - name: aws_s3_ls
+    description: "List S3 buckets or objects within a bucket/prefix. Without arguments, lists all buckets. With a path, lists objects."
+    command: s3 ls
+    args:
+      - name: path
+        type: string
+        description: "S3 path (e.g. 's3://bucket/prefix/') — omit to list all buckets"
+        positional: true
+      - name: recursive
+        type: boolean
+        description: "List all objects recursively under the prefix"
+        flag: "--recursive"
+      - name: human_readable
+        type: boolean
+        description: "Show file sizes in human-readable format (KB, MB, GB)"
+        flag: "--human-readable"
+      - name: summarize
+        type: boolean
+        description: "Show total count and size at the end"
+        flag: "--summarize"
+      - name: page_size
+        type: integer
+        description: "Number of results per API call (use for large buckets)"
+        flag: "--page-size"
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_s3_cp
+    description: "⚠️ WRITE: Copy files between local filesystem and S3, or between S3 locations. Use --dryrun to preview."
+    command: s3 cp
+    timeout: 300
+    args:
+      - name: source
+        type: string
+        description: "Source path (local path or s3://bucket/key)"
+        required: true
+        positional: true
+      - name: destination
+        type: string
+        description: "Destination path (local path or s3://bucket/key)"
+        required: true
+        positional: true
+      - name: recursive
+        type: boolean
+        description: "Copy directories/prefixes recursively"
+        flag: "--recursive"
+      - name: dryrun
+        type: boolean
+        description: "Preview what would be copied without making changes"
+        flag: "--dryrun"
+      - name: exclude
+        type: string
+        description: "Exclude pattern (e.g. '*.log')"
+        flag: "--exclude"
+      - name: include
+        type: string
+        description: "Include pattern (overrides exclude)"
+        flag: "--include"
+      - name: storage_class
+        type: string
+        description: "Storage class for uploaded objects"
+        flag: "--storage-class"
+        enum: ["STANDARD", "REDUCED_REDUNDANCY", "STANDARD_IA", "ONEZONE_IA", "INTELLIGENT_TIERING", "GLACIER", "DEEP_ARCHIVE"]
+      - name: content_type
+        type: string
+        description: "Content-Type for uploaded objects"
+        flag: "--content-type"
+      - name: quiet
+        type: boolean
+        description: "Suppress progress output"
+        flag: "--quiet"
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_s3_sync
+    description: "⚠️ WRITE: Sync directories between local and S3 or S3-to-S3. Only copies new/changed files. Use --dryrun to preview. WARNING: --delete removes destination files not in source."
+    command: s3 sync
+    timeout: 600
+    args:
+      - name: source
+        type: string
+        description: "Source path (local or s3://bucket/prefix)"
+        required: true
+        positional: true
+      - name: destination
+        type: string
+        description: "Destination path (local or s3://bucket/prefix)"
+        required: true
+        positional: true
+      - name: dryrun
+        type: boolean
+        description: "Preview what would be synced without making changes"
+        flag: "--dryrun"
+      - name: delete
+        type: boolean
+        description: "⚠️ DESTRUCTIVE: Delete destination files not in source"
+        flag: "--delete"
+      - name: exclude
+        type: string
+        description: "Exclude pattern"
+        flag: "--exclude"
+      - name: include
+        type: string
+        description: "Include pattern"
+        flag: "--include"
+      - name: size_only
+        type: boolean
+        description: "Compare by size only (ignore timestamps)"
+        flag: "--size-only"
+      - name: quiet
+        type: boolean
+        description: "Suppress progress output"
+        flag: "--quiet"
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_s3_presign
+    description: "Generate a pre-signed URL for an S3 object — allows temporary access without credentials."
+    command: s3 presign
+    args:
+      - name: path
+        type: string
+        description: "S3 object path (s3://bucket/key)"
+        required: true
+        positional: true
+      - name: expires_in
+        type: integer
+        description: "URL expiration in seconds (default 3600, max 604800)"
+        flag: "--expires-in"
+        default: 3600
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_s3_rm
+    description: "⚠️ DESTRUCTIVE: Delete S3 objects. Use --dryrun to preview. With --recursive, deletes entire prefixes."
+    command: s3 rm
+    args:
+      - name: path
+        type: string
+        description: "S3 path to delete (s3://bucket/key)"
+        required: true
+        positional: true
+      - name: recursive
+        type: boolean
+        description: "⚠️ Delete all objects under the prefix"
+        flag: "--recursive"
+      - name: dryrun
+        type: boolean
+        description: "Preview what would be deleted without making changes"
+        flag: "--dryrun"
+      - name: exclude
+        type: string
+        description: "Exclude pattern"
+        flag: "--exclude"
+      - name: include
+        type: string
+        description: "Include pattern"
+        flag: "--include"
+      - name: quiet
+        type: boolean
+        description: "Suppress progress output"
+        flag: "--quiet"
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── EC2 ─────────────────────────────────────────────────────────
+
+  - name: aws_ec2_describe_instances
+    description: "List and describe EC2 instances. Use --filters to narrow by state, tags, VPC, instance type, etc. Returns detailed instance metadata."
+    command: ec2 describe-instances
+    timeout: 60
+    args:
+      - name: instance_ids
+        type: string
+        description: "Space-separated instance IDs to describe"
+        flag: "--instance-ids"
+      - name: filters
+        type: string
+        description: "Filter expression (e.g. 'Name=instance-state-name,Values=running Name=tag:Name,Values=my-server')"
+        flag: "--filters"
+      - name: query
+        type: string
+        description: "JMESPath query to filter output (e.g. 'Reservations[].Instances[].[InstanceId,State.Name,Tags[?Key==`Name`].Value|[0]]')"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ec2_describe_security_groups
+    description: "List and describe EC2 security groups — see inbound/outbound rules, VPC association, and group metadata."
+    command: ec2 describe-security-groups
+    args:
+      - name: group_ids
+        type: string
+        description: "Space-separated security group IDs"
+        flag: "--group-ids"
+      - name: group_names
+        type: string
+        description: "Space-separated security group names"
+        flag: "--group-names"
+      - name: filters
+        type: string
+        description: "Filter expression"
+        flag: "--filters"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ec2_describe_vpcs
+    description: "List and describe VPCs — see CIDR blocks, state, tags, and associated resources."
+    command: ec2 describe-vpcs
+    args:
+      - name: vpc_ids
+        type: string
+        description: "Space-separated VPC IDs"
+        flag: "--vpc-ids"
+      - name: filters
+        type: string
+        description: "Filter expression"
+        flag: "--filters"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ec2_describe_subnets
+    description: "List and describe subnets — see CIDR, availability zone, VPC, and available IPs."
+    command: ec2 describe-subnets
+    args:
+      - name: subnet_ids
+        type: string
+        description: "Space-separated subnet IDs"
+        flag: "--subnet-ids"
+      - name: filters
+        type: string
+        description: "Filter expression"
+        flag: "--filters"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ec2_describe_images
+    description: "List AMIs (Amazon Machine Images). Filter by owner, name, architecture, etc."
+    command: ec2 describe-images
+    timeout: 60
+    args:
+      - name: image_ids
+        type: string
+        description: "Space-separated AMI IDs"
+        flag: "--image-ids"
+      - name: owners
+        type: string
+        description: "AMI owners (e.g. 'self', 'amazon', account ID)"
+        flag: "--owners"
+      - name: filters
+        type: string
+        description: "Filter expression (e.g. 'Name=name,Values=amzn2-ami-*')"
+        flag: "--filters"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ec2_start_instances
+    description: "⚠️ WRITE: Start one or more stopped EC2 instances."
+    command: ec2 start-instances
+    timeout: 60
+    args:
+      - name: instance_ids
+        type: string
+        description: "Space-separated instance IDs to start"
+        required: true
+        flag: "--instance-ids"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ec2_stop_instances
+    description: "⚠️ WRITE: Stop one or more running EC2 instances. Data on instance store volumes will be lost."
+    command: ec2 stop-instances
+    timeout: 60
+    args:
+      - name: instance_ids
+        type: string
+        description: "Space-separated instance IDs to stop"
+        required: true
+        flag: "--instance-ids"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── IAM ─────────────────────────────────────────────────────────
+
+  - name: aws_iam_list_users
+    description: "List all IAM users in the account."
+    command: iam list-users
+    args:
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+
+  - name: aws_iam_list_roles
+    description: "List all IAM roles in the account."
+    command: iam list-roles
+    args:
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+
+  - name: aws_iam_list_policies
+    description: "List IAM managed policies. Use --scope to filter AWS-managed vs customer-managed."
+    command: iam list-policies
+    args:
+      - name: scope
+        type: string
+        description: "Policy scope"
+        flag: "--scope"
+        enum: ["AWS", "Local", "All"]
+      - name: only_attached
+        type: boolean
+        description: "Show only policies attached to entities"
+        flag: "--only-attached"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+
+  - name: aws_iam_get_user
+    description: "Get details for a specific IAM user."
+    command: iam get-user
+    args:
+      - name: user_name
+        type: string
+        description: "IAM user name"
+        required: true
+        flag: "--user-name"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+
+  - name: aws_iam_get_role
+    description: "Get details for a specific IAM role — trust policy, description, and metadata."
+    command: iam get-role
+    args:
+      - name: role_name
+        type: string
+        description: "IAM role name"
+        required: true
+        flag: "--role-name"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+
+  - name: aws_iam_list_attached_role_policies
+    description: "List managed policies attached to a specific IAM role."
+    command: iam list-attached-role-policies
+    args:
+      - name: role_name
+        type: string
+        description: "IAM role name"
+        required: true
+        flag: "--role-name"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+
+  # ─── Lambda ──────────────────────────────────────────────────────
+
+  - name: aws_lambda_list_functions
+    description: "List all Lambda functions in the account/region."
+    command: lambda list-functions
+    args:
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_lambda_get_function
+    description: "Get detailed information about a Lambda function — runtime, handler, memory, timeout, environment, and code location."
+    command: lambda get-function
+    args:
+      - name: function_name
+        type: string
+        description: "Function name or ARN"
+        required: true
+        flag: "--function-name"
+      - name: qualifier
+        type: string
+        description: "Version or alias"
+        flag: "--qualifier"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_lambda_get_function_configuration
+    description: "Get only the configuration (no code location) of a Lambda function — runtime, memory, timeout, env vars, layers."
+    command: lambda get-function-configuration
+    args:
+      - name: function_name
+        type: string
+        description: "Function name or ARN"
+        required: true
+        flag: "--function-name"
+      - name: qualifier
+        type: string
+        description: "Version or alias"
+        flag: "--qualifier"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_lambda_invoke
+    description: "⚠️ WRITE: Invoke a Lambda function synchronously and get the response. Use for testing or triggering workflows."
+    command: lambda invoke
+    timeout: 120
+    args:
+      - name: function_name
+        type: string
+        description: "Function name or ARN"
+        required: true
+        flag: "--function-name"
+      - name: outfile
+        type: string
+        description: "File to write response payload to"
+        required: true
+        positional: true
+      - name: payload
+        type: string
+        description: "JSON input payload for the function"
+        flag: "--payload"
+      - name: invocation_type
+        type: string
+        description: "Invocation type"
+        flag: "--invocation-type"
+        enum: ["RequestResponse", "Event", "DryRun"]
+      - name: log_type
+        type: string
+        description: "Include execution logs in response"
+        flag: "--log-type"
+        enum: ["None", "Tail"]
+      - name: qualifier
+        type: string
+        description: "Version or alias"
+        flag: "--qualifier"
+      - name: cli_binary_format
+        type: string
+        description: "Binary format for payload"
+        flag: "--cli-binary-format"
+        enum: ["raw-in-base64-out", "base64"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_lambda_list_event_source_mappings
+    description: "List event source mappings (triggers) for Lambda functions — see SQS, DynamoDB, Kinesis, etc. sources."
+    command: lambda list-event-source-mappings
+    args:
+      - name: function_name
+        type: string
+        description: "Filter by function name"
+        flag: "--function-name"
+      - name: event_source_arn
+        type: string
+        description: "Filter by event source ARN"
+        flag: "--event-source-arn"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── CloudFormation ──────────────────────────────────────────────
+
+  - name: aws_cloudformation_list_stacks
+    description: "List CloudFormation stacks. Filter by status to find active, failed, or deleted stacks."
+    command: cloudformation list-stacks
+    args:
+      - name: stack_status_filter
+        type: string
+        description: "Filter by status (e.g. 'CREATE_COMPLETE UPDATE_COMPLETE')"
+        flag: "--stack-status-filter"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_cloudformation_describe_stacks
+    description: "Get detailed information about CloudFormation stacks — parameters, outputs, status, and capabilities."
+    command: cloudformation describe-stacks
+    args:
+      - name: stack_name
+        type: string
+        description: "Stack name or ID"
+        flag: "--stack-name"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_cloudformation_describe_stack_events
+    description: "View CloudFormation stack event history — see creation, update, and error events chronologically. Essential for debugging failed deployments."
+    command: cloudformation describe-stack-events
+    args:
+      - name: stack_name
+        type: string
+        description: "Stack name or ID"
+        required: true
+        flag: "--stack-name"
+      - name: query
+        type: string
+        description: "JMESPath query (e.g. 'StackEvents[?ResourceStatus==`CREATE_FAILED`]')"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_cloudformation_describe_stack_resources
+    description: "List all resources in a CloudFormation stack — see resource types, logical/physical IDs, and status."
+    command: cloudformation describe-stack-resources
+    args:
+      - name: stack_name
+        type: string
+        description: "Stack name or ID"
+        required: true
+        flag: "--stack-name"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_cloudformation_get_template
+    description: "Retrieve the CloudFormation template for a stack — useful for reviewing infrastructure-as-code."
+    command: cloudformation get-template
+    args:
+      - name: stack_name
+        type: string
+        description: "Stack name or ID"
+        required: true
+        flag: "--stack-name"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── ECS ─────────────────────────────────────────────────────────
+
+  - name: aws_ecs_list_clusters
+    description: "List all ECS clusters in the account/region."
+    command: ecs list-clusters
+    args:
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ecs_describe_clusters
+    description: "Get detailed information about ECS clusters — capacity providers, services count, registered instances."
+    command: ecs describe-clusters
+    args:
+      - name: clusters
+        type: string
+        description: "Space-separated cluster names or ARNs"
+        required: true
+        flag: "--clusters"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ecs_list_services
+    description: "List services running in an ECS cluster."
+    command: ecs list-services
+    args:
+      - name: cluster
+        type: string
+        description: "Cluster name or ARN"
+        required: true
+        flag: "--cluster"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ecs_describe_services
+    description: "Get detailed service info — task definition, desired/running count, load balancers, deployments, and events."
+    command: ecs describe-services
+    args:
+      - name: cluster
+        type: string
+        description: "Cluster name or ARN"
+        required: true
+        flag: "--cluster"
+      - name: services
+        type: string
+        description: "Space-separated service names or ARNs"
+        required: true
+        flag: "--services"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ecs_list_tasks
+    description: "List tasks running in an ECS cluster. Filter by service, desired status, or task family."
+    command: ecs list-tasks
+    args:
+      - name: cluster
+        type: string
+        description: "Cluster name or ARN"
+        required: true
+        flag: "--cluster"
+      - name: service_name
+        type: string
+        description: "Filter by service name"
+        flag: "--service-name"
+      - name: desired_status
+        type: string
+        description: "Filter by desired status"
+        flag: "--desired-status"
+        enum: ["RUNNING", "PENDING", "STOPPED"]
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ecs_describe_tasks
+    description: "Get detailed task info — container status, started/stopped times, and failure reasons."
+    command: ecs describe-tasks
+    args:
+      - name: cluster
+        type: string
+        description: "Cluster name or ARN"
+        required: true
+        flag: "--cluster"
+      - name: tasks
+        type: string
+        description: "Space-separated task ARNs"
+        required: true
+        flag: "--tasks"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ecs_describe_task_definition
+    description: "View a task definition — container images, CPU/memory, environment variables, volumes, and port mappings."
+    command: ecs describe-task-definition
+    args:
+      - name: task_definition
+        type: string
+        description: "Task definition family:revision or ARN"
+        required: true
+        flag: "--task-definition"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ecs_update_service
+    description: "⚠️ WRITE: Update an ECS service — change desired count, task definition, or force a new deployment."
+    command: ecs update-service
+    timeout: 60
+    args:
+      - name: cluster
+        type: string
+        description: "Cluster name or ARN"
+        required: true
+        flag: "--cluster"
+      - name: service
+        type: string
+        description: "Service name or ARN"
+        required: true
+        flag: "--service"
+      - name: desired_count
+        type: integer
+        description: "New desired task count"
+        flag: "--desired-count"
+      - name: task_definition
+        type: string
+        description: "New task definition (family:revision)"
+        flag: "--task-definition"
+      - name: force_new_deployment
+        type: boolean
+        description: "Force a new deployment even if task definition hasn't changed"
+        flag: "--force-new-deployment"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── CloudWatch Logs ─────────────────────────────────────────────
+
+  - name: aws_logs_describe_log_groups
+    description: "List CloudWatch log groups. Use the prefix filter to narrow results."
+    command: logs describe-log-groups
+    args:
+      - name: log_group_name_prefix
+        type: string
+        description: "Filter by log group name prefix"
+        flag: "--log-group-name-prefix"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_logs_describe_log_streams
+    description: "List log streams within a log group. Useful for finding recent streams to read."
+    command: logs describe-log-streams
+    args:
+      - name: log_group_name
+        type: string
+        description: "Log group name"
+        required: true
+        flag: "--log-group-name"
+      - name: log_stream_name_prefix
+        type: string
+        description: "Filter by stream name prefix"
+        flag: "--log-stream-name-prefix"
+      - name: order_by
+        type: string
+        description: "Sort order"
+        flag: "--order-by"
+        enum: ["LogStreamName", "LastEventTime"]
+      - name: descending
+        type: boolean
+        description: "Sort in descending order"
+        flag: "--descending"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_logs_filter_log_events
+    description: "Search across log streams within a log group. Use filter patterns like 'ERROR', '\"timeout\"', or metric filter syntax. Essential for debugging."
+    command: logs filter-log-events
+    timeout: 120
+    args:
+      - name: log_group_name
+        type: string
+        description: "Log group name"
+        required: true
+        flag: "--log-group-name"
+      - name: filter_pattern
+        type: string
+        description: "CloudWatch filter pattern (e.g. 'ERROR', '\"timeout\"', '[ip, id, user, timestamp, request, status_code=5*, size]')"
+        flag: "--filter-pattern"
+      - name: log_stream_names
+        type: string
+        description: "Specific stream names to search"
+        flag: "--log-stream-names"
+      - name: log_stream_name_prefix
+        type: string
+        description: "Filter streams by prefix"
+        flag: "--log-stream-name-prefix"
+      - name: start_time
+        type: integer
+        description: "Start time in epoch milliseconds"
+        flag: "--start-time"
+      - name: end_time
+        type: integer
+        description: "End time in epoch milliseconds"
+        flag: "--end-time"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: no_paginate
+        type: boolean
+        description: "Disable pagination (single page of results)"
+        flag: "--no-paginate"
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_logs_get_log_events
+    description: "Get log events from a specific log stream. Use when you know the exact stream to read."
+    command: logs get-log-events
+    timeout: 60
+    args:
+      - name: log_group_name
+        type: string
+        description: "Log group name"
+        required: true
+        flag: "--log-group-name"
+      - name: log_stream_name
+        type: string
+        description: "Log stream name"
+        required: true
+        flag: "--log-stream-name"
+      - name: start_time
+        type: integer
+        description: "Start time in epoch milliseconds"
+        flag: "--start-time"
+      - name: end_time
+        type: integer
+        description: "End time in epoch milliseconds"
+        flag: "--end-time"
+      - name: limit
+        type: integer
+        description: "Maximum number of events to return"
+        flag: "--limit"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: no_paginate
+        type: boolean
+        description: "Disable pagination"
+        flag: "--no-paginate"
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── DynamoDB ────────────────────────────────────────────────────
+
+  - name: aws_dynamodb_list_tables
+    description: "List all DynamoDB tables in the account/region."
+    command: dynamodb list-tables
+    args:
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_dynamodb_describe_table
+    description: "Get detailed table info — key schema, throughput, indexes, item count, and size."
+    command: dynamodb describe-table
+    args:
+      - name: table_name
+        type: string
+        description: "Table name"
+        required: true
+        flag: "--table-name"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_dynamodb_get_item
+    description: "Get a single item by primary key. Key must use DynamoDB typed JSON (e.g. '{\"id\": {\"S\": \"123\"}}')."
+    command: dynamodb get-item
+    args:
+      - name: table_name
+        type: string
+        description: "Table name"
+        required: true
+        flag: "--table-name"
+      - name: key
+        type: string
+        description: "Primary key in DynamoDB JSON format"
+        required: true
+        flag: "--key"
+      - name: consistent_read
+        type: boolean
+        description: "Use strongly consistent read"
+        flag: "--consistent-read"
+      - name: projection_expression
+        type: string
+        description: "Comma-separated attributes to return"
+        flag: "--projection-expression"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_dynamodb_query
+    description: "Query a DynamoDB table by partition key. Much more efficient than scan for known partition keys."
+    command: dynamodb query
+    timeout: 60
+    args:
+      - name: table_name
+        type: string
+        description: "Table name"
+        required: true
+        flag: "--table-name"
+      - name: key_condition_expression
+        type: string
+        description: "Key condition (e.g. 'pk = :pk_val AND sk BEGINS_WITH :prefix')"
+        required: true
+        flag: "--key-condition-expression"
+      - name: expression_attribute_values
+        type: string
+        description: "Attribute value placeholders in JSON (e.g. '{\":pk_val\": {\"S\": \"user#123\"}}')"
+        required: true
+        flag: "--expression-attribute-values"
+      - name: expression_attribute_names
+        type: string
+        description: "Attribute name placeholders (for reserved words)"
+        flag: "--expression-attribute-names"
+      - name: filter_expression
+        type: string
+        description: "Post-query filter expression"
+        flag: "--filter-expression"
+      - name: projection_expression
+        type: string
+        description: "Attributes to return"
+        flag: "--projection-expression"
+      - name: index_name
+        type: string
+        description: "Secondary index name"
+        flag: "--index-name"
+      - name: scan_index_forward
+        type: boolean
+        description: "Sort ascending (true) or descending (false)"
+        flag: "--scan-index-forward"
+      - name: limit
+        type: integer
+        description: "Maximum items to evaluate"
+        flag: "--limit"
+      - name: select
+        type: string
+        description: "What to return"
+        flag: "--select"
+        enum: ["ALL_ATTRIBUTES", "ALL_PROJECTED_ATTRIBUTES", "COUNT", "SPECIFIC_ATTRIBUTES"]
+      - name: consistent_read
+        type: boolean
+        description: "Use strongly consistent read"
+        flag: "--consistent-read"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_dynamodb_scan
+    description: "Scan an entire DynamoDB table. ⚠️ Reads every item — expensive on large tables. Prefer query when possible."
+    command: dynamodb scan
+    timeout: 120
+    args:
+      - name: table_name
+        type: string
+        description: "Table name"
+        required: true
+        flag: "--table-name"
+      - name: filter_expression
+        type: string
+        description: "Filter expression (applied after scan, still reads all items)"
+        flag: "--filter-expression"
+      - name: expression_attribute_values
+        type: string
+        description: "Attribute value placeholders in JSON"
+        flag: "--expression-attribute-values"
+      - name: expression_attribute_names
+        type: string
+        description: "Attribute name placeholders"
+        flag: "--expression-attribute-names"
+      - name: projection_expression
+        type: string
+        description: "Attributes to return"
+        flag: "--projection-expression"
+      - name: limit
+        type: integer
+        description: "Maximum items to evaluate"
+        flag: "--limit"
+      - name: select
+        type: string
+        description: "What to return"
+        flag: "--select"
+        enum: ["ALL_ATTRIBUTES", "ALL_PROJECTED_ATTRIBUTES", "COUNT", "SPECIFIC_ATTRIBUTES"]
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: no_paginate
+        type: boolean
+        description: "Disable pagination (single page of results)"
+        flag: "--no-paginate"
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── SSM Parameter Store ─────────────────────────────────────────
+
+  - name: aws_ssm_get_parameter
+    description: "Get a single parameter from SSM Parameter Store. Use --with-decryption for SecureString parameters."
+    command: ssm get-parameter
+    args:
+      - name: name
+        type: string
+        description: "Parameter name (full path, e.g. '/app/prod/db-password')"
+        required: true
+        flag: "--name"
+      - name: with_decryption
+        type: boolean
+        description: "Decrypt SecureString values"
+        flag: "--with-decryption"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ssm_get_parameters_by_path
+    description: "Get all parameters under a path hierarchy. Use for loading all config for an app/environment."
+    command: ssm get-parameters-by-path
+    args:
+      - name: path
+        type: string
+        description: "Parameter path prefix (e.g. '/app/prod/')"
+        required: true
+        flag: "--path"
+      - name: recursive
+        type: boolean
+        description: "Include parameters in sub-paths"
+        flag: "--recursive"
+      - name: with_decryption
+        type: boolean
+        description: "Decrypt SecureString values"
+        flag: "--with-decryption"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_ssm_describe_parameters
+    description: "List parameters in SSM Parameter Store. Use to discover available parameters and their metadata."
+    command: ssm describe-parameters
+    args:
+      - name: parameter_filters
+        type: string
+        description: "Filter parameters (e.g. 'Key=Name,Option=Contains,Values=prod')"
+        flag: "--parameter-filters"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── CloudWatch ──────────────────────────────────────────────────
+
+  - name: aws_cloudwatch_list_metrics
+    description: "List available CloudWatch metrics. Filter by namespace (e.g. AWS/EC2, AWS/Lambda) or metric name."
+    command: cloudwatch list-metrics
+    args:
+      - name: namespace
+        type: string
+        description: "Metric namespace (e.g. 'AWS/EC2', 'AWS/Lambda', 'AWS/RDS')"
+        flag: "--namespace"
+      - name: metric_name
+        type: string
+        description: "Filter by metric name"
+        flag: "--metric-name"
+      - name: dimensions
+        type: string
+        description: "Filter by dimensions (e.g. 'Name=InstanceId,Value=i-1234567890abcdef0')"
+        flag: "--dimensions"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_cloudwatch_get_metric_statistics
+    description: "Get historical metric data points. Specify namespace, metric, period, and statistic to aggregate."
+    command: cloudwatch get-metric-statistics
+    timeout: 60
+    args:
+      - name: namespace
+        type: string
+        description: "Metric namespace (e.g. 'AWS/EC2')"
+        required: true
+        flag: "--namespace"
+      - name: metric_name
+        type: string
+        description: "Metric name (e.g. 'CPUUtilization')"
+        required: true
+        flag: "--metric-name"
+      - name: start_time
+        type: string
+        description: "Start time (ISO 8601, e.g. '2024-01-01T00:00:00Z')"
+        required: true
+        flag: "--start-time"
+      - name: end_time
+        type: string
+        description: "End time (ISO 8601)"
+        required: true
+        flag: "--end-time"
+      - name: period
+        type: integer
+        description: "Aggregation period in seconds (minimum 60)"
+        required: true
+        flag: "--period"
+      - name: statistics
+        type: string
+        description: "Statistics to compute (space-separated: Average Sum Minimum Maximum SampleCount)"
+        required: true
+        flag: "--statistics"
+      - name: dimensions
+        type: string
+        description: "Metric dimensions"
+        flag: "--dimensions"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_cloudwatch_describe_alarms
+    description: "List CloudWatch alarms — see alarm state, thresholds, and actions."
+    command: cloudwatch describe-alarms
+    args:
+      - name: alarm_names
+        type: string
+        description: "Specific alarm names"
+        flag: "--alarm-names"
+      - name: alarm_name_prefix
+        type: string
+        description: "Filter by alarm name prefix"
+        flag: "--alarm-name-prefix"
+      - name: state_value
+        type: string
+        description: "Filter by alarm state"
+        flag: "--state-value"
+        enum: ["OK", "ALARM", "INSUFFICIENT_DATA"]
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── Route53 ─────────────────────────────────────────────────────
+
+  - name: aws_route53_list_hosted_zones
+    description: "List all Route53 hosted zones (DNS domains) in the account."
+    command: route53 list-hosted-zones
+    args:
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+
+  - name: aws_route53_list_resource_record_sets
+    description: "List all DNS records in a hosted zone — A, AAAA, CNAME, MX, TXT, etc."
+    command: route53 list-resource-record-sets
+    args:
+      - name: hosted_zone_id
+        type: string
+        description: "Hosted zone ID (e.g. '/hostedzone/Z1234567890')"
+        required: true
+        flag: "--hosted-zone-id"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+
+  # ─── EKS ─────────────────────────────────────────────────────────
+
+  - name: aws_eks_list_clusters
+    description: "List all EKS (Kubernetes) clusters in the account/region."
+    command: eks list-clusters
+    args:
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_eks_describe_cluster
+    description: "Get detailed EKS cluster info — API endpoint, Kubernetes version, VPC config, status, and logging."
+    command: eks describe-cluster
+    args:
+      - name: name
+        type: string
+        description: "Cluster name"
+        required: true
+        flag: "--name"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_eks_list_nodegroups
+    description: "List node groups in an EKS cluster."
+    command: eks list-nodegroups
+    args:
+      - name: cluster_name
+        type: string
+        description: "Cluster name"
+        required: true
+        flag: "--cluster-name"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_eks_describe_nodegroup
+    description: "Get detailed node group info — instance types, scaling config, AMI, and health status."
+    command: eks describe-nodegroup
+    args:
+      - name: cluster_name
+        type: string
+        description: "Cluster name"
+        required: true
+        flag: "--cluster-name"
+      - name: nodegroup_name
+        type: string
+        description: "Node group name"
+        required: true
+        flag: "--nodegroup-name"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── RDS ─────────────────────────────────────────────────────────
+
+  - name: aws_rds_describe_db_instances
+    description: "List and describe RDS database instances — engine, size, status, endpoint, and storage."
+    command: rds describe-db-instances
+    args:
+      - name: db_instance_identifier
+        type: string
+        description: "Specific DB instance ID"
+        flag: "--db-instance-identifier"
+      - name: filters
+        type: string
+        description: "Filter expression"
+        flag: "--filters"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_rds_describe_db_clusters
+    description: "List and describe Aurora DB clusters — engine, members, endpoints, and replication."
+    command: rds describe-db-clusters
+    args:
+      - name: db_cluster_identifier
+        type: string
+        description: "Specific DB cluster ID"
+        flag: "--db-cluster-identifier"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_rds_describe_db_snapshots
+    description: "List RDS snapshots — automated and manual backups."
+    command: rds describe-db-snapshots
+    args:
+      - name: db_instance_identifier
+        type: string
+        description: "Filter by DB instance"
+        flag: "--db-instance-identifier"
+      - name: db_snapshot_identifier
+        type: string
+        description: "Specific snapshot ID"
+        flag: "--db-snapshot-identifier"
+      - name: snapshot_type
+        type: string
+        description: "Snapshot type"
+        flag: "--snapshot-type"
+        enum: ["automated", "manual", "shared", "public", "awsbackup"]
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── SQS ─────────────────────────────────────────────────────────
+
+  - name: aws_sqs_list_queues
+    description: "List all SQS queues in the account/region."
+    command: sqs list-queues
+    args:
+      - name: queue_name_prefix
+        type: string
+        description: "Filter by queue name prefix"
+        flag: "--queue-name-prefix"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_sqs_get_queue_attributes
+    description: "Get queue attributes — message count, visibility timeout, retention, dead-letter config."
+    command: sqs get-queue-attributes
+    args:
+      - name: queue_url
+        type: string
+        description: "Queue URL"
+        required: true
+        flag: "--queue-url"
+      - name: attribute_names
+        type: string
+        description: "Attributes to fetch (use 'All' for everything)"
+        flag: "--attribute-names"
+        default: "All"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_sqs_send_message
+    description: "⚠️ WRITE: Send a message to an SQS queue."
+    command: sqs send-message
+    args:
+      - name: queue_url
+        type: string
+        description: "Queue URL"
+        required: true
+        flag: "--queue-url"
+      - name: message_body
+        type: string
+        description: "Message content"
+        required: true
+        flag: "--message-body"
+      - name: delay_seconds
+        type: integer
+        description: "Delay before message becomes visible (0-900)"
+        flag: "--delay-seconds"
+      - name: message_group_id
+        type: string
+        description: "Message group ID (required for FIFO queues)"
+        flag: "--message-group-id"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_sqs_receive_message
+    description: "Receive messages from an SQS queue. Messages become invisible for the visibility timeout period."
+    command: sqs receive-message
+    timeout: 60
+    args:
+      - name: queue_url
+        type: string
+        description: "Queue URL"
+        required: true
+        flag: "--queue-url"
+      - name: max_number_of_messages
+        type: integer
+        description: "Max messages to receive (1-10)"
+        flag: "--max-number-of-messages"
+        default: 1
+      - name: wait_time_seconds
+        type: integer
+        description: "Long polling wait time in seconds (0-20)"
+        flag: "--wait-time-seconds"
+      - name: visibility_timeout
+        type: integer
+        description: "Override visibility timeout in seconds"
+        flag: "--visibility-timeout"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── SNS ─────────────────────────────────────────────────────────
+
+  - name: aws_sns_list_topics
+    description: "List all SNS topics in the account/region."
+    command: sns list-topics
+    args:
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_sns_list_subscriptions
+    description: "List all SNS subscriptions across all topics."
+    command: sns list-subscriptions
+    args:
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_sns_list_subscriptions_by_topic
+    description: "List subscriptions for a specific SNS topic."
+    command: sns list-subscriptions-by-topic
+    args:
+      - name: topic_arn
+        type: string
+        description: "Topic ARN"
+        required: true
+        flag: "--topic-arn"
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_sns_publish
+    description: "⚠️ WRITE: Publish a message to an SNS topic. Delivers to all subscribed endpoints."
+    command: sns publish
+    args:
+      - name: topic_arn
+        type: string
+        description: "Topic ARN"
+        required: true
+        flag: "--topic-arn"
+      - name: message
+        type: string
+        description: "Message content"
+        required: true
+        flag: "--message"
+      - name: subject
+        type: string
+        description: "Message subject (for email subscriptions)"
+        flag: "--subject"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  # ─── Polly (Text-to-Speech) ─────────────────────────────────────
+
+  - name: aws_polly_describe_voices
+    description: "List available Polly voices. Filter by language code or engine to find the right voice for speech synthesis."
+    command: polly describe-voices
+    args:
+      - name: engine
+        type: string
+        description: "Filter by engine type"
+        flag: "--engine"
+        enum: ["standard", "neural", "long-form", "generative"]
+      - name: language_code
+        type: string
+        description: "Filter by language (e.g. 'en-US', 'es-ES', 'fr-FR', 'de-DE', 'ja-JP')"
+        flag: "--language-code"
+      - name: include_additional_language_codes
+        type: boolean
+        description: "Include additional languages supported by bilingual voices"
+        flag: "--include-additional-language-codes"
+      - name: query
+        type: string
+        description: "JMESPath query (e.g. 'Voices[].[Id,LanguageCode,Gender,SupportedEngines]')"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_polly_synthesize_speech
+    description: "⚠️ WRITE: Convert text to speech audio. Outputs an audio file (mp3, ogg_vorbis, or pcm). Use describe-voices first to find a valid voice-id."
+    command: polly synthesize-speech
+    timeout: 120
+    args:
+      - name: text
+        type: string
+        description: "Text to synthesize (plain text or SSML depending on text_type)"
+        required: true
+        flag: "--text"
+      - name: voice_id
+        type: string
+        description: "Voice to use (e.g. 'Joanna', 'Matthew', 'Amy', 'Brian'). Use describe-voices to list options."
+        required: true
+        flag: "--voice-id"
+      - name: output_format
+        type: string
+        description: "Audio format for the output"
+        required: true
+        flag: "--output-format"
+        enum: ["mp3", "ogg_vorbis", "pcm", "json"]
+      - name: outfile
+        type: string
+        description: "File path to write the audio output to"
+        required: true
+        positional: true
+      - name: engine
+        type: string
+        description: "Synthesis engine — neural and generative sound more natural but support fewer voices"
+        flag: "--engine"
+        enum: ["standard", "neural", "long-form", "generative"]
+      - name: text_type
+        type: string
+        description: "Whether the input is plain text or SSML markup"
+        flag: "--text-type"
+        enum: ["text", "ssml"]
+      - name: language_code
+        type: string
+        description: "Language code (required for bilingual voices, e.g. 'en-US', 'hi-IN')"
+        flag: "--language-code"
+      - name: sample_rate
+        type: string
+        description: "Audio sample rate in Hz (e.g. '8000', '16000', '22050', '24000')"
+        flag: "--sample-rate"
+      - name: lexicon_names
+        type: string
+        description: "Custom pronunciation lexicon names to apply"
+        flag: "--lexicon-names"
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_polly_start_speech_synthesis_task
+    description: "⚠️ WRITE: Start an async speech synthesis task for long text. Output is written to an S3 bucket. Use for text too long for synchronous synthesize-speech."
+    command: polly start-speech-synthesis-task
+    timeout: 60
+    args:
+      - name: text
+        type: string
+        description: "Text to synthesize"
+        required: true
+        flag: "--text"
+      - name: voice_id
+        type: string
+        description: "Voice to use"
+        required: true
+        flag: "--voice-id"
+      - name: output_format
+        type: string
+        description: "Audio format"
+        required: true
+        flag: "--output-format"
+        enum: ["mp3", "ogg_vorbis", "pcm", "json"]
+      - name: output_s3_bucket_name
+        type: string
+        description: "S3 bucket to write the audio output to"
+        required: true
+        flag: "--output-s3-bucket-name"
+      - name: output_s3_key_prefix
+        type: string
+        description: "S3 key prefix for the output file"
+        flag: "--output-s3-key-prefix"
+      - name: engine
+        type: string
+        description: "Synthesis engine"
+        flag: "--engine"
+        enum: ["standard", "neural", "long-form", "generative"]
+      - name: text_type
+        type: string
+        description: "Whether input is plain text or SSML"
+        flag: "--text-type"
+        enum: ["text", "ssml"]
+      - name: language_code
+        type: string
+        description: "Language code for bilingual voices"
+        flag: "--language-code"
+      - name: sample_rate
+        type: string
+        description: "Audio sample rate in Hz"
+        flag: "--sample-rate"
+      - name: sns_topic_arn
+        type: string
+        description: "SNS topic ARN to notify when task completes"
+        flag: "--sns-topic-arn"
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_polly_get_speech_synthesis_task
+    description: "Check the status of an async speech synthesis task — see progress, output URL, and any errors."
+    command: polly get-speech-synthesis-task
+    args:
+      - name: task_id
+        type: string
+        description: "Task ID returned by start-speech-synthesis-task"
+        required: true
+        flag: "--task-id"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_polly_list_speech_synthesis_tasks
+    description: "List recent async speech synthesis tasks and their status."
+    command: polly list-speech-synthesis-tasks
+    args:
+      - name: status
+        type: string
+        description: "Filter by task status"
+        flag: "--status"
+        enum: ["scheduled", "inProgress", "completed", "failed"]
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_polly_list_lexicons
+    description: "List custom pronunciation lexicons stored in your account."
+    command: polly list-lexicons
+    args:
+      - name: query
+        type: string
+        description: "JMESPath query"
+        flag: "--query"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
+
+  - name: aws_polly_get_lexicon
+    description: "Get a custom pronunciation lexicon — see its PLS XML content and metadata."
+    command: polly get-lexicon
+    args:
+      - name: name
+        type: string
+        description: "Lexicon name"
+        required: true
+        flag: "--name"
+      - name: output
+        type: string
+        description: "Output format"
+        flag: "--output"
+        enum: ["json", "text", "table", "yaml"]
+      - name: profile
+        type: string
+        description: "Named credential profile"
+        flag: "--profile"
+      - name: region
+        type: string
+        description: "AWS region"
+        flag: "--region"
