@@ -212,13 +212,46 @@ class TestClimaxSearch:
         assert "git_branch" not in tool_names
 
     async def test_limit_caps_results(self):
-        """Limit caps results."""
+        """Limit caps results and reports total_matches."""
         server, _ = _make_default_server()
         result = await _call_tool(server, "climax_search", {"cli": "git-tools", "limit": 2})
 
         data = json.loads(result.content[0].text)
         assert data["mode"] == "search"
         assert len(data["results"]) == 2
+        assert data["returned"] == 2
+        assert data["total_matches"] > 2
+        assert data["has_more"] is True
+
+    async def test_offset_paginates_results(self):
+        """Offset skips results for pagination."""
+        server, _ = _make_default_server()
+        # Get first 2
+        r1 = await _call_tool(server, "climax_search", {"cli": "git-tools", "limit": 2, "offset": 0})
+        d1 = json.loads(r1.content[0].text)
+        # Get next 2
+        r2 = await _call_tool(server, "climax_search", {"cli": "git-tools", "limit": 2, "offset": 2})
+        d2 = json.loads(r2.content[0].text)
+
+        names_1 = {r["tool_name"] for r in d1["results"]}
+        names_2 = {r["tool_name"] for r in d2["results"]}
+        # Pages should not overlap
+        assert names_1.isdisjoint(names_2)
+        # Both should report the same total
+        assert d1["total_matches"] == d2["total_matches"]
+        assert d1["offset"] == 0
+        assert d2["offset"] == 2
+
+    async def test_offset_beyond_results_returns_empty(self):
+        """Offset past total results returns empty with has_more=False."""
+        server, _ = _make_default_server()
+        result = await _call_tool(server, "climax_search", {"cli": "git-tools", "offset": 999})
+
+        data = json.loads(result.content[0].text)
+        assert data["results"] == []
+        assert data["returned"] == 0
+        assert data["has_more"] is False
+        assert data["total_matches"] > 0
 
     async def test_no_filter_returns_summary(self):
         """No-filter call returns summary with CLI names/tool counts/categories."""
@@ -256,6 +289,9 @@ class TestClimaxSearch:
         data = json.loads(result.content[0].text)
         assert data["mode"] == "search"
         assert data["results"] == []
+        assert data["total_matches"] == 0
+        assert data["returned"] == 0
+        assert data["has_more"] is False
 
 
 # ---------------------------------------------------------------------------

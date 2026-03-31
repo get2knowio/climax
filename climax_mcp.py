@@ -1108,8 +1108,13 @@ def create_server(
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "Maximum number of results to return (default: 10)",
-                        "default": 10,
+                        "description": "Maximum number of results to return (default: 50)",
+                        "default": 50,
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of results to skip for pagination (default: 0). Use with limit to page through large result sets.",
+                        "default": 0,
                     },
                 },
             },
@@ -1282,13 +1287,17 @@ def create_server(
         category = arguments.get("category")
         cli = arguments.get("cli")
         try:
-            limit = int(arguments.get("limit", 10))
+            limit = int(arguments.get("limit", 50))
         except (ValueError, TypeError):
-            limit = 10
+            limit = 50
+        try:
+            offset = int(arguments.get("offset", 0))
+        except (ValueError, TypeError):
+            offset = 0
 
         # Summary mode when all filter params are absent
         if query is None and category is None and cli is None:
-            summaries = index.summary()[:limit]
+            summaries = index.summary()[offset : offset + limit]
             response = {
                 "mode": "summary",
                 "summary": [s.model_dump() for s in summaries],
@@ -1296,10 +1305,16 @@ def create_server(
         else:
             # Filter results to only include policy-allowed tools
             all_matches = index.search(query=query, category=category, cli=cli, limit=sys.maxsize)
-            filtered = [e for e in all_matches if e.tool_name in tool_map][:limit]
+            filtered = [e for e in all_matches if e.tool_name in tool_map]
+            total = len(filtered)
+            page = filtered[offset : offset + limit]
             response = {
                 "mode": "search",
-                "results": [e.model_dump() for e in filtered],
+                "results": [e.model_dump() for e in page],
+                "total_matches": total,
+                "offset": offset,
+                "returned": len(page),
+                "has_more": (offset + len(page)) < total,
             }
 
         return [types.TextContent(type="text", text=json.dumps(response))]
