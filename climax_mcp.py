@@ -1662,12 +1662,14 @@ def cmd_run(args) -> None:
     server_name, tool_map, configs = load_configs(_resolve_run_configs(args))
 
     executor = None
-    policy: PolicyConfig | None = None
     policy_path = getattr(args, "policy", None)
     if policy_path:
         policy = load_policy(policy_path)
         tool_map = apply_policy(tool_map, policy)
         executor = policy.executor
+    else:
+        # Default policy: all tools enabled, write/destructive require approval
+        policy = PolicyConfig(default=DefaultPolicy.enabled)
 
     # CLI override for headless approval behavior
     if policy and getattr(args, "headless_approve", False):
