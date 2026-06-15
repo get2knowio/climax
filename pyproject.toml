@@ -49,3 +49,9 @@ only-include = ["climax_mcp.py", "configs", "skill"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv]
+# Supply-chain cooldown: ignore distributions uploaded in the last 7 days so a
+# malicious release has time to be detected/yanked before it can be resolved.
+# Relative (rolling) window; relies on PyPI's PEP 700 upload-time metadata.
+exclude-newer = "7 days"
