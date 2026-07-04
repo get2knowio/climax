@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Python package (uv — pyproject.toml + uv.lock at repo root). The cooldown
+  # Python package (uv: pyproject.toml + uv.lock at repo root). The cooldown
   # holds newly published versions for 7 days so a compromised release can be
   # detected and yanked before Dependabot proposes it.
   - package-ecosystem: "uv"

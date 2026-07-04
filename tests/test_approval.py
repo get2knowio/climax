@@ -1,9 +1,7 @@
 """Tests for the approval dialog system."""
 
 import textwrap
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import AsyncMock, patch
 
 from climax_mcp import (
     ApprovalConfig,
