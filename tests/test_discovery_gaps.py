@@ -1,11 +1,10 @@
 """Tests filling gaps in meta-tool coverage: unknown-tool enrichment and error parity."""
 
 import json
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-import mcp.types as types
+from mcp import types
 
 from climax_mcp import (
     ArgType,
@@ -16,7 +15,6 @@ from climax_mcp import (
     ToolIndex,
     create_server,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers (duplicated from test_meta_tools.py)
@@ -152,7 +150,7 @@ class TestClimaxCallUnknownToolEnriched:
                 ToolDef(name="solo_echo", description="Echo something", command="echo"),
             ],
         )
-        server, tool_map = _make_default_server(configs=[config])
+        server, _tool_map = _make_default_server(configs=[config])
 
         result = await _call_tool(
             server, "climax_call", {"tool_name": "missing"}
@@ -315,7 +313,7 @@ class TestClimaxCallEdgeCases:
     async def test_tool_name_case_mismatch_returns_unknown_tool_error(self):
         """climax_call with wrong-case tool name (e.g. 'Git_Status') returns
         unknown-tool error listing available tools."""
-        server, tool_map = _make_default_server()
+        server, _tool_map = _make_default_server()
 
         result = await _call_tool(
             server, "climax_call", {"tool_name": "Git_Status"}

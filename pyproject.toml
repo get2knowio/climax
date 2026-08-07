@@ -30,6 +30,10 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+# Exact pin, not a floor: ruff's *default* rule set changes between releases,
+# so a floating version silently turns main red the day a new rule ships.
+# Pinning routes that change through a reviewable Dependabot PR instead.
+lint = ["ruff==0.16.1"]
 benchmark = ["tiktoken>=0.7"]
 
 [project.urls]
@@ -40,6 +44,15 @@ Issues = "https://github.com/get2knowio/climax/issues"
 [project.scripts]
 climax-mcp = "climax_mcp:main"
 climax = "climax_mcp:main"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# Rule selection is ruff's default set; the exact pin in the `lint` extra is
+# what keeps it stable. Run locally with `uv run --extra lint ruff check .`
+# so you get the same ruff CI does.
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

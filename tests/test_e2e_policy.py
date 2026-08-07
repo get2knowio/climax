@@ -7,19 +7,17 @@ with policy applied.
 from pathlib import Path
 
 import pytest
-
-import mcp.types as types
+from mcp import types
 
 from climax_mcp import (
+    ArgConstraint,
+    DefaultPolicy,
+    PolicyConfig,
+    ToolPolicy,
     apply_policy,
     create_server,
     load_configs,
-    PolicyConfig,
-    DefaultPolicy,
-    ToolPolicy,
-    ArgConstraint,
 )
-
 
 COREUTILS_YAML = Path(__file__).parent.parent / "examples" / "coreutils.yaml"
 

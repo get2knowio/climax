@@ -1,28 +1,26 @@
 """Tests for MCP meta-tools: climax_search, climax_call, default/classic modes, and validate_tool_args."""
 
 import json
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-import mcp.types as types
+from mcp import types
 
 from climax_mcp import (
     ArgConstraint,
     ArgType,
     CLImaxConfig,
+    DefaultPolicy,
+    PolicyConfig,
     ResolvedTool,
     ToolArg,
     ToolDef,
     ToolIndex,
+    ToolPolicy,
     apply_policy,
     create_server,
-    DefaultPolicy,
-    PolicyConfig,
-    ToolPolicy,
     validate_tool_args,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -620,7 +618,7 @@ class TestValidateToolArgs:
             description="test",
             args=[ToolArg(name="message", type=ArgType.string, required=True)],
         )
-        coerced, errors = validate_tool_args({}, tool_def)
+        _coerced, errors = validate_tool_args({}, tool_def)
         assert len(errors) == 1
         assert "message" in errors[0]
         assert "required" in errors[0].lower() or "Missing" in errors[0]
@@ -655,7 +653,7 @@ class TestValidateToolArgs:
             description="test",
             args=[ToolArg(name="n", type=ArgType.integer)],
         )
-        coerced, errors = validate_tool_args({"n": "hello"}, tool_def)
+        _coerced, errors = validate_tool_args({"n": "hello"}, tool_def)
         assert len(errors) == 1
         assert "n" in errors[0]
 
@@ -666,7 +664,7 @@ class TestValidateToolArgs:
             description="test",
             args=[ToolArg(name="val", type=ArgType.number)],
         )
-        coerced, errors = validate_tool_args({"val": "abc"}, tool_def)
+        _coerced, errors = validate_tool_args({"val": "abc"}, tool_def)
         assert len(errors) == 1
         assert "val" in errors[0]
 
@@ -699,7 +697,7 @@ class TestValidateToolArgs:
             description="test",
             args=[ToolArg(name="verbose", type=ArgType.boolean)],
         )
-        coerced, errors = validate_tool_args({"verbose": "maybe"}, tool_def)
+        _coerced, errors = validate_tool_args({"verbose": "maybe"}, tool_def)
         assert len(errors) == 1
         assert "verbose" in errors[0]
 
@@ -721,7 +719,7 @@ class TestValidateToolArgs:
             description="test",
             args=[ToolArg(name="fmt", type=ArgType.string, enum=["json", "csv"])],
         )
-        coerced, errors = validate_tool_args({"fmt": "xml"}, tool_def)
+        _coerced, errors = validate_tool_args({"fmt": "xml"}, tool_def)
         assert len(errors) == 1
         assert "json" in errors[0]
         assert "csv" in errors[0]
@@ -748,7 +746,7 @@ class TestValidateToolArgs:
             description="test",
             args=[ToolArg(name="opt", type=ArgType.string)],
         )
-        coerced, errors = validate_tool_args({}, tool_def)
+        _coerced, errors = validate_tool_args({}, tool_def)
         assert errors == []
 
     def test_non_string_coerced_to_string(self):
@@ -773,7 +771,7 @@ class TestValidateToolArgs:
                 ToolArg(name="b", type=ArgType.integer),
             ],
         )
-        coerced, errors = validate_tool_args({"b": "notanumber"}, tool_def)
+        _coerced, errors = validate_tool_args({"b": "notanumber"}, tool_def)
         assert len(errors) == 2
         error_text = " ".join(errors)
         assert "a" in error_text
@@ -832,7 +830,7 @@ class TestValidateToolArgs:
             description="test",
             args=[ToolArg(name="verbose", type=ArgType.boolean)],
         )
-        coerced, errors = validate_tool_args({"verbose": [1, 2, 3]}, tool_def)
+        _coerced, errors = validate_tool_args({"verbose": [1, 2, 3]}, tool_def)
         assert len(errors) == 1
         assert "verbose" in errors[0]
 

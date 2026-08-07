@@ -8,11 +8,9 @@ import textwrap
 from pathlib import Path
 
 import pytest
-
-import mcp.types as types
+from mcp import types
 
 from climax_mcp import create_server, load_configs
-
 
 COREUTILS_YAML = Path(__file__).parent.parent / "examples" / "coreutils.yaml"
 

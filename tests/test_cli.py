@@ -6,13 +6,13 @@ import logging
 import os
 import textwrap
 from io import StringIO
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from rich.console import Console
 
 import climax_mcp
-from climax_mcp import cmd_validate, cmd_list, cmd_run, cmd_skill, main
+from climax_mcp import cmd_list, cmd_run, cmd_skill, cmd_validate, main
 
 
 def _make_args(configs, policy=None):
@@ -45,12 +45,12 @@ class TestCmdValidate:
         assert "command" in output.lower()
 
     def test_invalid_config_bad_syntax(self, invalid_yaml_syntax):
-        console, buf = _capture_console()
+        console, _buf = _capture_console()
         rc = cmd_validate(_make_args([str(invalid_yaml_syntax)]), console=console)
         assert rc == 1
 
     def test_file_not_found(self, tmp_path):
-        console, buf = _capture_console()
+        console, _buf = _capture_console()
         rc = cmd_validate(_make_args([str(tmp_path / "nope.yaml")]), console=console)
         assert rc == 1
 
@@ -141,7 +141,7 @@ class TestCmdList:
         assert "default=10" in output
 
     def test_list_invalid_config(self, missing_command_yaml):
-        console, buf = _capture_console()
+        console, _buf = _capture_console()
         rc = cmd_list(_make_args([str(missing_command_yaml)]), console=console)
         assert rc == 1
 
@@ -265,7 +265,7 @@ class TestCmdValidatePolicy:
         assert "✗" in output
 
     def test_validate_with_missing_policy(self, valid_yaml, tmp_path):
-        console, buf = _capture_console()
+        console, _buf = _capture_console()
         rc = cmd_validate(
             _make_args([str(valid_yaml)], policy=str(tmp_path / "nope.yaml")),
             console=console,
@@ -465,7 +465,7 @@ class TestCmdSkill:
     def test_skill_install_existing_dir(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / ".claude" / "commands").mkdir(parents=True)
-        console, buf = _capture_console()
+        console, _buf = _capture_console()
         rc = cmd_skill(self._make_skill_args(install=True), console=console)
         assert rc == 0
         dest = tmp_path / ".claude" / "commands" / "climax-config.md"
@@ -491,10 +491,12 @@ class TestCmdRun:
             policy=str(minimal_policy_yaml),
             log_level="WARNING",
         )
-        with patch("climax_mcp.asyncio.run"):
-            with patch("climax_mcp.create_server") as mock_create:
-                mock_create.return_value = MagicMock()
-                cmd_run(args)
+        with (
+            patch("climax_mcp.asyncio.run"),
+            patch("climax_mcp.create_server") as mock_create,
+        ):
+            mock_create.return_value = MagicMock()
+            cmd_run(args)
         mock_create.assert_called_once()
         # executor kwarg should be passed (from the policy)
         assert "executor" in mock_create.call_args.kwargs
@@ -517,18 +519,22 @@ class TestMainSubcommands:
     def test_main_validate_subcommand(self, valid_yaml):
         """main() with 'validate' dispatches to cmd_validate."""
         with patch("climax_mcp.cmd_validate", return_value=0) as mock_validate:
-            with patch("sys.argv", ["climax", "validate", str(valid_yaml)]):
-                with pytest.raises(SystemExit) as exc_info:
-                    main()
+            with (
+                patch("sys.argv", ["climax", "validate", str(valid_yaml)]),
+                pytest.raises(SystemExit) as exc_info,
+            ):
+                main()
             assert exc_info.value.code == 0
             mock_validate.assert_called_once()
 
     def test_main_list_subcommand(self, valid_yaml):
         """main() with 'list' dispatches to cmd_list."""
         with patch("climax_mcp.cmd_list", return_value=0) as mock_list:
-            with patch("sys.argv", ["climax", "list", str(valid_yaml)]):
-                with pytest.raises(SystemExit) as exc_info:
-                    main()
+            with (
+                patch("sys.argv", ["climax", "list", str(valid_yaml)]),
+                pytest.raises(SystemExit) as exc_info,
+            ):
+                main()
             assert exc_info.value.code == 0
             mock_list.assert_called_once()
 
@@ -542,11 +548,17 @@ class TestMainSubcommands:
     def test_main_validate_with_policy(self, valid_yaml, minimal_policy_yaml):
         """main() passes --policy flag through to cmd_validate."""
         with patch("climax_mcp.cmd_validate", return_value=0) as mock_validate:
-            with patch("sys.argv", [
-                "climax", "validate", "--policy", str(minimal_policy_yaml), str(valid_yaml),
-            ]):
-                with pytest.raises(SystemExit):
-                    main()
+            with (
+                patch(
+                    "sys.argv",
+                    [
+                        "climax", "validate", "--policy",
+                        str(minimal_policy_yaml), str(valid_yaml),
+                    ],
+                ),
+                pytest.raises(SystemExit),
+            ):
+                main()
             args = mock_validate.call_args[0][0]
             assert args.policy == str(minimal_policy_yaml)
 
