@@ -1,6 +1,6 @@
 [project]
 name = "climax-mcp"
-version = "0.5.0"
+version = "0.5.0rc1"
 description = "Expose any CLI as MCP tools via YAML configuration"
 requires-python = ">=3.11"
 readme = "README.md"
