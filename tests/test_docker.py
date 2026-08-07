@@ -3,11 +3,10 @@
 import shutil
 import subprocess
 import textwrap
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-import mcp.types as types
+from mcp import types
 
 from climax_mcp import (
     ArgConstraint,

@@ -5,14 +5,13 @@ import time
 import pytest
 
 from climax_mcp import (
+    ArgType,
     CLImaxConfig,
     ToolArg,
-    ArgType,
     ToolDef,
     ToolIndex,
     load_config,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

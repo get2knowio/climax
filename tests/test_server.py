@@ -1,9 +1,8 @@
 """Tests for MCP server integration — list_tools and call_tool."""
 
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
-
-import mcp.types as types
+from mcp import types
 
 from climax_mcp import (
     ArgConstraint,

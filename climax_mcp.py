@@ -24,15 +24,14 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+import mcp.server.stdio
 import yaml
+from mcp import types
+from mcp.server.lowlevel import Server
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
-
-import mcp.server.stdio
-import mcp.types as types
-from mcp.server.lowlevel import Server
 
 # Rich logging to stderr (stdout is reserved for MCP stdio transport)
 console = Console(stderr=True)
@@ -170,7 +169,7 @@ class ExecutorConfig(BaseModel):
     working_dir: str | None = None
     network: str | None = None
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, context: Any, /) -> None:
         if self.type == ExecutorType.docker and not self.image:
             raise ValueError("Docker executor requires 'image' to be set")
 
@@ -232,7 +231,7 @@ class ToolIndexEntry(BaseModel):
     input_schema: dict[str, Any] = Field(default_factory=dict)
     _search_text: str = ""
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, context: Any, /) -> None:
         """Pre-compute lowercased search text from all searchable fields."""
         parts = [self.tool_name, self.description, self.cli_name]
         if self.category:
@@ -367,9 +366,10 @@ class ToolIndex:
         for entry in self._entries:
             if query_lower and query_lower not in entry._search_text:
                 continue
-            if category_lower:
-                if not entry.category or entry.category.lower() != category_lower:
-                    continue
+            if category_lower and (
+                not entry.category or entry.category.lower() != category_lower
+            ):
+                continue
             if cli_lower and entry.cli_name.lower() != cli_lower:
                 continue
             results.append(entry)
@@ -408,7 +408,7 @@ def _resolve_config(name_or_path: str | Path) -> Path:
     Otherwise, look up a bundled config by name in CONFIGS_DIR.
     """
     s = str(name_or_path)
-    if "/" in s or s.endswith(".yaml") or s.endswith(".yml"):
+    if "/" in s or s.endswith((".yaml", ".yml")):
         return Path(s)
     bundled = CONFIGS_DIR / f"{s}.yaml"
     if bundled.exists():
@@ -506,11 +506,10 @@ def apply_policy(
     for name, resolved in tool_map.items():
         tool_policy = policy.tools.get(name)
 
-        if policy.default == DefaultPolicy.disabled:
-            # Only tools explicitly listed survive
-            if tool_policy is None:
-                continue
-        # default=enabled: all tools survive
+        # default=disabled: only tools explicitly listed survive.
+        # default=enabled: all tools survive.
+        if policy.default == DefaultPolicy.disabled and tool_policy is None:
+            continue
 
         # Clone the resolved tool with overrides
         new_resolved = resolved.model_copy()
@@ -557,12 +556,15 @@ def validate_arguments(
 
         value = arguments[arg_name]
 
-        if constraint.pattern is not None and isinstance(value, str):
-            if not re.fullmatch(constraint.pattern, value):
-                errors.append(
-                    f"Argument '{arg_name}': value '{value}' does not match "
-                    f"pattern '{constraint.pattern}'"
-                )
+        if (
+            constraint.pattern is not None
+            and isinstance(value, str)
+            and not re.fullmatch(constraint.pattern, value)
+        ):
+            errors.append(
+                f"Argument '{arg_name}': value '{value}' does not match "
+                f"pattern '{constraint.pattern}'"
+            )
 
         if constraint.min is not None:
             try:
@@ -850,7 +852,7 @@ async def run_command(
             stdout.decode("utf-8", errors="replace"),
             stderr.decode("utf-8", errors="replace"),
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning(
             "⏱ Timeout after %.1fs (pid=%s, cmd=%s) — killing process",
             timeout, getattr(proc, 'pid', '?'), cmd[0],
@@ -983,7 +985,7 @@ async def _dialog_macos(message: str) -> bool | None:
         if proc.returncode != 0:
             return False
         return "Approve" in stdout.decode()
-    except (asyncio.TimeoutError, FileNotFoundError, OSError):
+    except (TimeoutError, FileNotFoundError, OSError):
         return None
 
 
@@ -1000,7 +1002,7 @@ async def _dialog_linux(message: str) -> bool | None:
             )
             await asyncio.wait_for(proc.communicate(), timeout=120.0)
             return proc.returncode == 0
-        except (asyncio.TimeoutError, OSError):
+        except (TimeoutError, OSError):
             pass
 
     if shutil.which("kdialog"):
@@ -1013,7 +1015,7 @@ async def _dialog_linux(message: str) -> bool | None:
             )
             await asyncio.wait_for(proc.communicate(), timeout=120.0)
             return proc.returncode == 0
-        except (asyncio.TimeoutError, OSError):
+        except (TimeoutError, OSError):
             pass
 
     return None
@@ -1037,7 +1039,7 @@ async def _dialog_windows(message: str) -> bool | None:
         )
         await asyncio.wait_for(proc.communicate(), timeout=120.0)
         return proc.returncode == 0
-    except (asyncio.TimeoutError, FileNotFoundError, OSError):
+    except (TimeoutError, FileNotFoundError, OSError):
         return None
 
 
@@ -1147,7 +1149,7 @@ def create_server(
 
         # Classic mode: return all individual tools
         result = []
-        for name, resolved in tool_map.items():
+        for resolved in tool_map.values():
             td = resolved.tool
             description = resolved.description_override or td.description
             result.append(
@@ -1404,7 +1406,7 @@ def cmd_validate(args, console: Console | None = None) -> int:
                 loc = " → ".join(str(part) for part in err["loc"])
                 console.print(f"    {loc}: {err['msg']}")
             invalid += 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — CLI boundary: report, don't traceback
             console.print(f"  [red]✗[/red] {path}: {e}")
             invalid += 1
 
@@ -1420,7 +1422,7 @@ def cmd_validate(args, console: Console | None = None) -> int:
                 loc = " → ".join(str(part) for part in err["loc"])
                 console.print(f"    {loc}: {err['msg']}")
             invalid += 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — CLI boundary: report, don't traceback
             console.print(f"  [red]✗[/red] {policy_path} (policy): {e}")
             invalid += 1
 
@@ -1449,7 +1451,7 @@ def cmd_list(args, console: Console | None = None) -> int:
 
     try:
         server_name, tool_map, _configs = load_configs(args.configs)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — CLI boundary: report, don't traceback
         console.print(f"[red]Error loading configs:[/red] {e}")
         return 1
 
@@ -1460,7 +1462,7 @@ def cmd_list(args, console: Console | None = None) -> int:
         try:
             policy = load_policy(policy_path)
             tool_map = apply_policy(tool_map, policy)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — CLI boundary: report, don't traceback
             console.print(f"[red]Error loading policy:[/red] {e}")
             return 1
 
@@ -1693,10 +1695,10 @@ def cmd_run(args) -> None:
         asyncio.run(run())
 
     elif transport == "sse":
+        import uvicorn
         from mcp.server.sse import SseServerTransport
         from starlette.applications import Starlette
         from starlette.routing import Mount, Route
-        import uvicorn
 
         host = getattr(args, "host", "127.0.0.1")
         port = getattr(args, "port", 8000)
@@ -1719,10 +1721,10 @@ def cmd_run(args) -> None:
         uvicorn.run(app, host=host, port=port, log_level=args.log_level.lower())
 
     elif transport == "streamable-http":
+        import uvicorn
         from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
         from starlette.applications import Starlette
         from starlette.routing import Mount
-        import uvicorn
 
         host = getattr(args, "host", "127.0.0.1")
         port = getattr(args, "port", 8000)

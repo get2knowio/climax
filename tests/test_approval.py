@@ -1,19 +1,23 @@
 """Tests for the approval dialog system."""
 
 import textwrap
+from io import StringIO
 from unittest.mock import AsyncMock, patch
+
+from mcp import types
+from rich.console import Console
 
 from climax_mcp import (
     ApprovalConfig,
     ApprovalLevel,
     HeadlessPolicy,
     PolicyConfig,
+    ResolveConfig,
     ResolvedTool,
     RiskLevel,
     ToolArg,
     ToolDef,
     ToolPolicy,
-    ResolveConfig,
     _requires_approval,
     _run_resolves,
     _show_approval_dialog,
@@ -21,10 +25,6 @@ from climax_mcp import (
     create_server,
     load_policy,
 )
-import mcp.types as types
-from io import StringIO
-from rich.console import Console
-
 
 # ---------------------------------------------------------------------------
 # _requires_approval logic
@@ -564,9 +564,11 @@ class TestCmdTestDialog:
         """Test that cmd_test_dialog runs and reports approval."""
         buf = StringIO()
         test_console = Console(file=buf, force_terminal=True)
-        with patch("climax_mcp._dialog_linux", new_callable=AsyncMock, return_value=True):
-            with patch("climax_mcp.platform.system", return_value="Linux"):
-                rc = cmd_test_dialog(console=test_console)
+        with (
+            patch("climax_mcp._dialog_linux", new_callable=AsyncMock, return_value=True),
+            patch("climax_mcp.platform.system", return_value="Linux"),
+        ):
+            rc = cmd_test_dialog(console=test_console)
         assert rc == 0
         output = buf.getvalue()
         assert "Approve" in output
@@ -575,9 +577,11 @@ class TestCmdTestDialog:
         """Test that cmd_test_dialog runs and reports denial."""
         buf = StringIO()
         test_console = Console(file=buf, force_terminal=True)
-        with patch("climax_mcp._dialog_linux", new_callable=AsyncMock, return_value=False):
-            with patch("climax_mcp.platform.system", return_value="Linux"):
-                rc = cmd_test_dialog(console=test_console)
+        with (
+            patch("climax_mcp._dialog_linux", new_callable=AsyncMock, return_value=False),
+            patch("climax_mcp.platform.system", return_value="Linux"),
+        ):
+            rc = cmd_test_dialog(console=test_console)
         assert rc == 0
         output = buf.getvalue()
         assert "Deny" in output
@@ -586,10 +590,12 @@ class TestCmdTestDialog:
         """When no GUI available, falls through to terminal dialog."""
         buf = StringIO()
         test_console = Console(file=buf, force_terminal=True)
-        with patch("climax_mcp._dialog_linux", new_callable=AsyncMock, return_value=None):
-            with patch("climax_mcp._dialog_terminal", new_callable=AsyncMock, return_value=False):
-                with patch("climax_mcp.platform.system", return_value="Linux"):
-                    rc = cmd_test_dialog(console=test_console)
+        with (
+            patch("climax_mcp._dialog_linux", new_callable=AsyncMock, return_value=None),
+            patch("climax_mcp._dialog_terminal", new_callable=AsyncMock, return_value=False),
+            patch("climax_mcp.platform.system", return_value="Linux"),
+        ):
+            rc = cmd_test_dialog(console=test_console)
         assert rc == 0
         output = buf.getvalue()
         assert "terminal" in output.lower() or "Deny" in output

@@ -1,6 +1,7 @@
 """Tests for YAML config loading and validation."""
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from climax_mcp import load_config, load_configs
@@ -33,7 +34,7 @@ class TestLoadConfig:
             load_config(tmp_path / "nonexistent.yaml")
 
     def test_yaml_syntax_error(self, invalid_yaml_syntax):
-        with pytest.raises(Exception):
+        with pytest.raises(yaml.YAMLError):
             load_config(invalid_yaml_syntax)
 
 

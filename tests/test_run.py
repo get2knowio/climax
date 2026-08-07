@@ -1,8 +1,7 @@
 """Tests for run_command — async subprocess execution."""
 
 import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
-
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from climax_mcp import run_command
 
@@ -28,7 +27,7 @@ class TestRunCommand:
     async def test_failure_exit_code(self):
         proc = _make_proc(returncode=1, stderr=b"error\n")
         with patch("climax_mcp.asyncio.create_subprocess_exec", return_value=proc):
-            rc, out, err = await run_command(["false"])
+            rc, _out, err = await run_command(["false"])
         assert rc == 1
         assert err == "error\n"
 
@@ -62,7 +61,7 @@ class TestRunCommand:
         proc = _make_proc()
         proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError)
         with patch("climax_mcp.asyncio.create_subprocess_exec", return_value=proc):
-            rc, out, err = await run_command(["sleep", "100"], timeout=0.1)
+            rc, _out, err = await run_command(["sleep", "100"], timeout=0.1)
         assert rc == -1
         assert "timed out" in err.lower()
         proc.kill.assert_called_once()
@@ -72,7 +71,7 @@ class TestRunCommand:
             "climax_mcp.asyncio.create_subprocess_exec",
             side_effect=FileNotFoundError,
         ):
-            rc, out, err = await run_command(["nonexistent_cmd_xyz"])
+            rc, _out, err = await run_command(["nonexistent_cmd_xyz"])
         assert rc == -1
         assert "not found" in err.lower()
 
@@ -95,12 +94,12 @@ class TestRunCommand:
 
     async def test_integration_echo(self):
         """Integration test with a real command."""
-        rc, out, err = await run_command(["echo", "integration test"])
+        rc, out, _err = await run_command(["echo", "integration test"])
         assert rc == 0
         assert "integration test" in out
 
     async def test_integration_stdin_cat(self):
         """Integration test: pipe data via stdin to cat."""
-        rc, out, err = await run_command(["cat"], stdin_data="piped content")
+        rc, out, _err = await run_command(["cat"], stdin_data="piped content")
         assert rc == 0
         assert "piped content" in out

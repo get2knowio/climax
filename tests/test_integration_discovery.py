@@ -6,11 +6,10 @@ are mocked — only the handler chain is tested.
 """
 
 import json
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-import mcp.types as types
+from mcp import types
 
 from climax_mcp import (
     ResolvedTool,
@@ -18,7 +17,6 @@ from climax_mcp import (
     create_server,
     load_config,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers (duplicated per-file per contract)
