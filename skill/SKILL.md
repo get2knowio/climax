@@ -44,7 +44,7 @@ Not every subcommand should be a tool. Apply this filter:
 - Setup/init commands that are run once (init, clone, install)
 - Commands that produce binary output (export archives, dump databases)
 
-**Flag destructive commands** clearly in the description if you do include them: "⚠️ DESTRUCTIVE: Permanently deletes..."
+**Flag destructive commands** clearly in the description if you do include them: "⚠️ DESTRUCTIVE: Permanently deletes..." — and set `risk: destructive`, which triggers an approval dialog at runtime. See [Approval Dialogs](#approval-dialogs).
 
 ### Step 3: Generate the YAML
 
@@ -68,6 +68,7 @@ tools:
     command: "<subcommand>"           # Appended to base command (can be multi-word)
     timeout: 30                      # Optional: seconds before killing (default 30)
     risk: read                       # Optional: read (default) | write | destructive
+                                     # write/destructive PROMPT the user by default
     confirm_message: "Delete {path}?" # Optional: approval dialog template (uses arg names)
     resolve:                         # Optional: resolve opaque IDs for confirm_message
       _friendly_name:                # Variable name available in confirm_message
@@ -130,6 +131,78 @@ tools:
 23. Add `confirm_message` to destructive tools with a clear description of what will happen
 24. Use `resolve` blocks when tool arguments contain opaque IDs that need human-readable context in the approval dialog
 25. Prefer read-only tool sets for untrusted environments
+26. **`risk` is load-bearing, not documentation** — it decides whether the user gets an approval dialog at runtime. Read the next section before assigning it.
+
+## Approval Dialogs
+
+Since 0.5.0, the `risk` field controls real runtime behavior. **By default, every tool marked `risk: write` or `risk: destructive` shows a native confirmation dialog before it runs**, and the call does not proceed until the user approves it.
+
+This makes `risk` the highest-stakes field in the config. Getting it wrong fails in both directions:
+
+- **Too high** (marking a read-only tool `write`) — the user gets a popup on every routine call. A `git_log` or `aws_s3_ls` that prompts is worse than useless; people disable approvals entirely, losing protection on the tools that needed it.
+- **Too low** (leaving a destructive tool at the default `read`) — it executes silently with no confirmation. This is the dangerous direction.
+
+### How the level is decided
+
+The default policy is `approval.global: write`. Levels, from a policy file:
+
+| `approval.global` | Prompts for |
+|---|---|
+| `none` | nothing |
+| `destructive` | `risk: destructive` only |
+| `write` *(default)* | `risk: write` and `risk: destructive` |
+| `all` | every tool call, including reads |
+
+Per-tool overrides win over the global level — `approval.tools.<tool_name>: false` in a policy file, or `require_approval` on a tool policy entry.
+
+### Assigning risk
+
+- **`read`** (default) — inspects state and returns it. Listing, showing, searching, diffing, describing, logs. Safe to run repeatedly.
+- **`write`** — changes state, but the change is recoverable or routine. Creating a note, committing, tagging, adding a label, uploading a file.
+- **`destructive`** — irreversible, or destroys work. Deleting, force-pushing, hard-resetting, terminating instances, overwriting without backup. **Always pair with `confirm_message`.**
+
+The dividing line for `destructive` is *"could the user get this back if they clicked Approve by mistake?"* — not how alarming the verb sounds.
+
+### Writing `confirm_message`
+
+Without one, the user sees the raw assembled command. That's fine for simple tools and poor for anything with opaque arguments. Name the specific thing being affected:
+
+```yaml
+  - name: gh_pr_close
+    description: "Close a pull request without merging it"
+    command: pr close
+    risk: write
+    confirm_message: "Close PR #{number} in {repo}?"
+```
+
+When the argument is an ID the user won't recognize, use a `resolve` block to look up something human-readable first. The resolve command runs *before* the dialog, and its output becomes a template variable:
+
+```yaml
+  - name: aws_ec2_terminate
+    description: "⚠️ DESTRUCTIVE: Permanently terminate an EC2 instance"
+    command: ec2 terminate-instances
+    risk: destructive
+    resolve:
+      _instance_name:
+        command: "ec2 describe-instances"
+        args:
+          instance-ids: "{instance_id}"
+          query: "Reservations[0].Instances[0].Tags[?Key=='Name']|[0].Value"
+        timeout: 10
+    confirm_message: "Terminate instance {_instance_name} ({instance_id})? This cannot be undone."
+```
+
+`Terminate instance web-prod-01 (i-0abc123)?` is a decision the user can actually make. `Terminate instance i-0abc123?` is not.
+
+Template variables come from the tool's own arg names plus any `resolve` keys. A name that doesn't resolve degrades to a generic message rather than failing the call, so verify every `{placeholder}` matches a real arg or resolve key.
+
+### Headless environments
+
+If no GUI **and** no TTY is available, the default `approval.headless: deny` refuses the call rather than running it unprompted. Anything marked `write` or `destructive` will fail closed when CLImax runs unattended — CI, a container, a remote MCP client with no display.
+
+That is the correct default, but it means risk annotations decide whether a config works at all in automation. If a config is meant for unattended use, say so, and point at `--headless-approve` or `approval.global: none` rather than downgrading honest risk levels to make prompts go away.
+
+Users can verify dialogs display on their system with `climax test-dialog`.
 
 ## Patterns and Examples
 
@@ -227,7 +300,11 @@ After generating a config, mentally verify:
 - [ ] No interactive or TTY-dependent commands are exposed
 - [ ] Destructive tools have `risk: destructive` and a `confirm_message`
 - [ ] Write tools have `risk: write`
+- [ ] Read-only tools are **not** marked `write` — they would prompt on every call
+- [ ] Every `{placeholder}` in a `confirm_message` matches a real arg name or `resolve` key
+- [ ] `confirm_message` names the specific thing affected, not just the action
 - [ ] `resolve` blocks reference valid argument names in their templates
+- [ ] If the config targets unattended use, the approval implications are called out
 
 ## Output
 
