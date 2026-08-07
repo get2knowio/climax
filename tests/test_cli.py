@@ -26,6 +26,18 @@ def _capture_console():
     return Console(file=buf, force_terminal=False, width=200), buf
 
 
+def _close_coro(coro):
+    """Consume the coroutine handed to a patched `asyncio.run`.
+
+    A bare MagicMock swallows `cmd_run`'s inner coroutine without awaiting it,
+    so it emits "coroutine ... was never awaited" when it is eventually
+    collected. The warning surfaces against whatever line happens to be
+    executing at GC time, which makes it look unrelated to these tests.
+    Closing it here keeps the mock's call recording intact.
+    """
+    coro.close()
+
+
 class TestCmdValidate:
     def test_valid_config(self, valid_yaml):
         console, buf = _capture_console()
@@ -202,7 +214,7 @@ class TestBundledNameResolution:
             policy=None,
             log_level="WARNING",
         )
-        with patch("climax_mcp.asyncio.run"):
+        with patch("climax_mcp.asyncio.run", side_effect=_close_coro):
             cmd_run(args)
 
     def test_unknown_bundled_name_errors(self):
@@ -480,7 +492,7 @@ class TestCmdRun:
             policy=None,
             log_level="WARNING",
         )
-        with patch("climax_mcp.asyncio.run") as mock_arun:
+        with patch("climax_mcp.asyncio.run", side_effect=_close_coro) as mock_arun:
             cmd_run(args)
         mock_arun.assert_called_once()
 
@@ -492,7 +504,7 @@ class TestCmdRun:
             log_level="WARNING",
         )
         with (
-            patch("climax_mcp.asyncio.run"),
+            patch("climax_mcp.asyncio.run", side_effect=_close_coro),
             patch("climax_mcp.create_server") as mock_create,
         ):
             mock_create.return_value = MagicMock()
@@ -508,7 +520,7 @@ class TestCmdRun:
             policy=None,
             log_level="DEBUG",
         )
-        with patch("climax_mcp.asyncio.run"):
+        with patch("climax_mcp.asyncio.run", side_effect=_close_coro):
             cmd_run(args)
         assert climax_mcp.logger.level == logging.DEBUG
         # Reset to avoid affecting other tests
