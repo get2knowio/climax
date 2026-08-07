@@ -293,7 +293,8 @@ class TestDockerReal:
     """Real Docker integration tests — actually run containers."""
 
     @pytest.fixture(scope="class", autouse=True)
-    def pull_alpine(self):
+    @classmethod
+    def pull_alpine(cls):
         """Pull alpine:latest once per test session."""
         subprocess.run(["docker", "pull", "alpine:latest"], check=True, capture_output=True)
 
