@@ -9,11 +9,37 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
+    ignore:
+      # mcp 2.0 replaced the low-level Server decorator API
+      # (@server.list_tools/@server.call_tool) that climax_mcp.create_server()
+      # is built on, so 2.x is a code migration (#18), not a version bump.
+      # Dependabot proposed it anyway in #22, where it failed every test job.
+      # Drop this entry as part of that migration.
+      - dependency-name: "mcp"
+        versions: [">=2"]
 
-  # GitHub Actions workflows (ci.yml).
+  # GitHub Actions workflows (ci.yml, release.yml).
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     cooldown:
       default-days: 7
+    ignore:
+      # These are referenced by floating major tag (@v7, @v3), which already
+      # picks up patch and minor releases on its own — so a patch/minor PR is
+      # pure churn, and can even pin *backwards* if the major tag has moved
+      # further ahead than the proposed version (see #16). Major bumps still
+      # open a PR, which is the case that actually warrants review.
+      #
+      # astral-sh/setup-uv is deliberately NOT listed here: v8.0.0 stopped
+      # publishing floating tags, so it must be pinned to a full version and
+      # does need patch/minor PRs to stay current.
+      - dependency-name: "actions/checkout"
+        update-types:
+          - "version-update:semver-patch"
+          - "version-update:semver-minor"
+      - dependency-name: "softprops/action-gh-release"
+        update-types:
+          - "version-update:semver-patch"
+          - "version-update:semver-minor"
