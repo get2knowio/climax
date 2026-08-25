@@ -1,17 +1,11 @@
 # Changelog
 
-## Unreleased
-
-### Features
-
-- **Clear error on incompatible mcp** — `create_server()` now feature-detects the low-level `Server` decorator API and, when it is missing (mcp 2.x), raises `Incompatible mcp version: <found> (CLImax <ver> requires mcp>=1.7,<2)` with upgrade instructions, instead of the bare `AttributeError: 'Server' object has no attribute 'list_tools'` that pre-0.5.0 installs hit ([#18](https://github.com/get2knowio/climax/issues/18)).
-- **`climax --version`** — Prints the installed `climax-mcp` version and exits. Available at the top level, via `-V`, and on every subcommand. The version is read from package metadata (`importlib.metadata`), so it can't drift from `pyproject.toml`, and it is now also reported to MCP clients in the server's initialize response.
-
-## 0.5.0 — 2026-08-07
+## 0.5.0 — 2026-08-25
 
 ### Highlights
 
 - **Tool-call approval dialogs** — Tools can declare a `risk` level (`read`, `write`, `destructive`), and CLImax shows a native confirmation dialog before running the risky ones. Uses `osascript` on macOS, `zenity`/`kdialog` on Linux, and a PowerShell `MessageBox` on Windows, falling back to a `/dev/tty` prompt so the prompt survives MCP's occupied stdin. Add `confirm_message` to a tool for a templated prompt (`"Delete {path}?"`), and a `resolve` block to turn opaque IDs into human-readable context before asking.
+- **`climax --version`** — Prints the installed version and exits, accepted at the top level, via `-V`, and on every subcommand. Read from package metadata (`importlib.metadata`) so it can't drift from `pyproject.toml`, and reported to MCP clients in the server's initialize response.
 - **`climax test-dialog`** — Shows a synthetic approval dialog so you can confirm your system can display one before relying on it.
 - **Paginated discovery** — `climax_search` accepts `offset` and returns `total_matches` and `has_more`, so agents can page through large tool sets instead of truncating.
 - **Bundled `gh` and `aws` configs** — 47 GitHub CLI tools and 76 AWS CLI v2 tools, risk-annotated out of the box. Reference by bare name: `climax gh`.
@@ -29,9 +23,10 @@
 - Per-tool approval overrides via `approval.tools.<name>` or a tool policy's `require_approval`
 - `resolve` blocks run a secondary CLI command to expand `{variables}` in `confirm_message`
 - `--headless-approve` CLI flag to override `approval.headless` without editing a policy file
+- Incompatible mcp versions now fail with an actionable `Incompatible mcp version: <found> (requires mcp>=1.7,<2)` error naming the upgrade command, instead of a bare `AttributeError: 'Server' object has no attribute 'list_tools'` ([#18](https://github.com/get2knowio/climax/issues/18))
 - Denied calls return `Tool execution denied by user: <tool>` rather than raising
 - Config-generator skill documents risk levels and approval behavior
-- 373 tests across 18 test modules
+- 382 tests across 18 test modules
 - Ruff pinned in CI so lint results don't drift with new releases
 
 ## 0.4.0 — 2026-03-16
