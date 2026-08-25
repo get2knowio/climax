@@ -9,6 +9,7 @@ Usage:
     climax list config.yaml [config2.yaml ...]
     climax run config.yaml [config2.yaml ...]
     climax config.yaml [--log-level ...]         # backward compat
+    climax --version
 """
 
 import asyncio
@@ -48,6 +49,20 @@ logging.basicConfig(
 logger = logging.getLogger("climax")
 
 CONFIGS_DIR = Path(__file__).parent / "configs"
+
+
+def _detect_version() -> str:
+    """Version of the installed climax-mcp distribution ("unknown" if not installed)."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("climax-mcp")
+    except PackageNotFoundError:
+        # Running from a source checkout without an install (e.g. `python climax_mcp.py`)
+        return "unknown"
+
+
+__version__ = _detect_version()
 
 # Optional file log: set CLIMAX_LOG_FILE to enable persistent logging
 _log_file = os.environ.get("CLIMAX_LOG_FILE")
@@ -1076,6 +1091,33 @@ async def _dialog_terminal(
 # MCP Server
 # ---------------------------------------------------------------------------
 
+def _check_mcp_compat(server: Server) -> None:
+    """Fail with an actionable message on mcp 2.x, which dropped the decorator API.
+
+    mcp 2.0 replaced @server.list_tools()/@server.call_tool() with constructor-based
+    handler registration, so registering handlers below would raise a bare
+    AttributeError. Feature-detect rather than version-match. See #18.
+    """
+    if hasattr(server, "list_tools") and hasattr(server, "call_tool"):
+        return
+
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _dist_version
+
+    try:
+        found = _dist_version("mcp")
+    except PackageNotFoundError:  # pragma: no cover - mcp is a hard dependency
+        found = "unknown"
+
+    raise RuntimeError(
+        f"Incompatible mcp version: {found} (CLImax {__version__} requires mcp>=1.7,<2).\n"
+        "mcp 2.0 removed the low-level Server decorator API that CLImax registers "
+        "handlers with.\n"
+        "Fix: upgrade CLImax (pip install -U climax-mcp), which pins mcp<2, "
+        "or pin it yourself (pip install 'mcp<2')."
+    )
+
+
 def create_server(
     server_name: str,
     tool_map: dict[str, ResolvedTool],
@@ -1086,7 +1128,8 @@ def create_server(
 ) -> Server:
     """Create and configure the MCP server from resolved tools."""
 
-    server = Server(server_name)
+    server = Server(server_name, version=__version__)
+    _check_mcp_compat(server)
 
     # Meta-tool definitions for default (progressive discovery) mode
     _META_TOOLS = [
@@ -1753,6 +1796,14 @@ def _add_policy_arg(parser):
     parser.add_argument("--policy", metavar="POLICY", default=None, help="Policy YAML file")
 
 
+def _add_version_arg(parser):
+    """Add the -V/--version argument to a parser."""
+    parser.add_argument(
+        "-V", "--version", action="version", version=f"climax {__version__}",
+        help="Show the installed CLImax version and exit",
+    )
+
+
 def _available_bundled() -> list[str]:
     """Return sorted list of available bundled config names."""
     return sorted(p.stem for p in CONFIGS_DIR.glob("*.yaml"))
@@ -1764,6 +1815,7 @@ def _build_run_parser(parser=None):
 
     if parser is None:
         parser = argparse.ArgumentParser()
+    _add_version_arg(parser)
     parser.add_argument("bundled", nargs="*", metavar="NAME", help="Bundled config names (e.g. git, docker, obsidian)")
     parser.add_argument("--config", action="append", default=[], metavar="FILE", help="Custom config file path(s) — can be repeated")
     _add_policy_arg(parser)
@@ -1847,15 +1899,18 @@ def main():
     parser = argparse.ArgumentParser(
         description="CLImax: expose any CLI as MCP tools via YAML config"
     )
+    _add_version_arg(parser)
     subparsers = parser.add_subparsers(dest="subcommand")
 
     # --- validate ---
     p_validate = subparsers.add_parser("validate", help="Validate config file(s)")
+    _add_version_arg(p_validate)
     p_validate.add_argument("configs", nargs="+", metavar="CONFIG")
     _add_policy_arg(p_validate)
 
     # --- list ---
     p_list = subparsers.add_parser("list", help="List tools from config file(s)")
+    _add_version_arg(p_list)
     p_list.add_argument("configs", nargs="*", metavar="CONFIG")
     _add_policy_arg(p_list)
 
@@ -1863,10 +1918,11 @@ def main():
     _build_run_parser(subparsers.add_parser("run", help="Start MCP server"))
 
     # --- test-dialog ---
-    subparsers.add_parser("test-dialog", help="Test that approval dialogs display on your system")
+    _add_version_arg(subparsers.add_parser("test-dialog", help="Test that approval dialogs display on your system"))
 
     # --- skill ---
     p_skill = subparsers.add_parser("skill", help="Print or install the CLImax skill file")
+    _add_version_arg(p_skill)
     skill_group = p_skill.add_mutually_exclusive_group()
     skill_group.add_argument("--path", action="store_true", help="Print the path to SKILL.md")
     skill_group.add_argument("--install", action="store_true", help="Install to .claude/commands/climax-config.md")

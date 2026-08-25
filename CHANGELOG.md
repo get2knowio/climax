@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Clear error on incompatible mcp** — `create_server()` now feature-detects the low-level `Server` decorator API and, when it is missing (mcp 2.x), raises `Incompatible mcp version: <found> (CLImax <ver> requires mcp>=1.7,<2)` with upgrade instructions, instead of the bare `AttributeError: 'Server' object has no attribute 'list_tools'` that pre-0.5.0 installs hit ([#18](https://github.com/get2knowio/climax/issues/18)).
+- **`climax --version`** — Prints the installed `climax-mcp` version and exits. Available at the top level, via `-V`, and on every subcommand. The version is read from package metadata (`importlib.metadata`), so it can't drift from `pyproject.toml`, and it is now also reported to MCP clients in the server's initialize response.
+
 ## 0.5.0 — 2026-08-07
 
 ### Highlights
