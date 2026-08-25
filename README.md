@@ -375,6 +375,20 @@ climax test-dialog
 #   ✓ You clicked Approve — approval dialogs are working!
 ```
 
+### `climax --version` — Show the installed version
+
+Prints the version of the installed `climax-mcp` distribution and exits. Accepted at the top level and on every subcommand, so `climax --version` and `climax run --version` are equivalent. Useful when reporting a bug.
+
+```bash
+climax --version
+# climax 0.5.0
+
+climax -V
+# climax 0.5.0
+```
+
+If CLImax is run from a source checkout that was never installed, the version reads `unknown`. The same version is reported to MCP clients in the server's initialize response.
+
 ## HTTP Transports
 
 By default, CLImax communicates over **stdio** — the standard MCP transport where the client launches the server as a subprocess. For scenarios where you want CLImax running as a standalone HTTP server (remote access, shared servers, debugging), two HTTP transports are available.

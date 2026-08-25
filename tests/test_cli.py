@@ -597,3 +597,75 @@ class TestLogFileEnvVar:
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("CLIMAX_LOG_FILE", None)
             importlib.reload(climax_mcp)
+
+
+class TestVersionFlag:
+    """--version works at top level, on `run`, and via the backward-compat shorthand."""
+
+    def _capture(self, argv):
+        """Run main() with argv and return (exit_code, stdout)."""
+        buf = StringIO()
+        with (
+            patch("sys.argv", argv),
+            patch("sys.stdout", buf),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            main()
+        return exc_info.value.code, buf.getvalue()
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["climax", "--version"],
+            ["climax", "-V"],
+            ["climax", "run", "--version"],
+            ["climax", "validate", "--version"],
+        ],
+    )
+    def test_prints_version_and_exits_zero(self, argv):
+        code, out = self._capture(argv)
+        assert code == 0
+        assert out.strip() == f"climax {climax_mcp.__version__}"
+
+    def test_version_matches_installed_distribution(self):
+        """__version__ comes from package metadata, not a hardcoded literal."""
+        from importlib.metadata import version
+
+        assert climax_mcp.__version__ == version("climax-mcp")
+
+    def test_version_falls_back_when_not_installed(self):
+        """A source checkout with no installed dist reports 'unknown' rather than crashing."""
+        from importlib.metadata import PackageNotFoundError
+
+        with patch("importlib.metadata.version", side_effect=PackageNotFoundError):
+            assert climax_mcp._detect_version() == "unknown"
+
+    def test_version_does_not_start_a_server(self):
+        """`climax --version` must exit before cmd_run, not fall through to stdio."""
+        with patch("climax_mcp.cmd_run") as mock_run:
+            self._capture(["climax", "--version"])
+            mock_run.assert_not_called()
+
+
+class TestMcpCompatCheck:
+    """create_server() fails loudly on mcp 2.x instead of raising a bare AttributeError."""
+
+    def test_rejects_server_without_decorator_api(self):
+        """A Server lacking list_tools/call_tool (mcp 2.x) raises an actionable error."""
+        fake_server = MagicMock(spec=[])  # no attributes at all
+
+        with (
+            patch("climax_mcp.Server", return_value=fake_server),
+            pytest.raises(RuntimeError) as exc_info,
+        ):
+            climax_mcp.create_server("test", {})
+
+        message = str(exc_info.value)
+        assert "Incompatible mcp version" in message
+        assert "mcp>=1.7,<2" in message
+        assert "climax-mcp" in message
+
+    def test_accepts_server_with_decorator_api(self):
+        """The installed mcp 1.x Server passes the check (no exception)."""
+        server = climax_mcp.create_server("test", {})
+        assert server is not None
