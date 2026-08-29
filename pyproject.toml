@@ -33,7 +33,7 @@ test = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 # Exact pin, not a floor: ruff's *default* rule set changes between releases,
 # so a floating version silently turns main red the day a new rule ships.
 # Pinning routes that change through a reviewable Dependabot PR instead.
-lint = ["ruff==0.16.3"]
+lint = ["ruff==0.16.4"]
 benchmark = ["tiktoken>=0.7"]
 
 [project.urls]
