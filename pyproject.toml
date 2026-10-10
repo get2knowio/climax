@@ -22,7 +22,7 @@ dependencies = [
     # Upper bound: mcp 2.0 replaced the low-level Server decorator API
     # (@server.list_tools/@server.call_tool) with constructor-based handler
     # registration, so climax_mcp.create_server() cannot run on 2.x. See #18.
-    "mcp>=1.7,<2",
+    "mcp>=1.7,<3",
     "pyyaml>=6.0",
     "pydantic>=2.0",
     "rich>=13.0",
